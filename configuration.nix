@@ -40,8 +40,6 @@
     modesetting.enable = true;
     powerManagement.enable = false;
     powerManagement.finegrained = false;
-    # open = false es correcto si usas NVENC para OBS
-    # Cambiar a true si no usas encoding de video
     open = false;
     nvidiaSettings = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
