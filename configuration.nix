@@ -24,16 +24,16 @@
     ];
   };
   nixpkgs.config.allowUnfree = true;
-  
+
   # Optimizaciones AMD Ryzen 5700X
   hardware.cpu.amd.updateMicrocode = true;
-  
+
   # Configuración GPU NVIDIA RTX 3060
   hardware.graphics = {
     enable = true;
     enable32Bit = true; # Para juegos de 32 bits
   };
-  
+
   services.xserver.videoDrivers = ["nvidia"];
 
   hardware.nvidia = {
@@ -43,12 +43,16 @@
     open = false;
     nvidiaSettings = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
+
+    # CRÍTICO: Habilitar DRM (Direct Rendering Manager) para Wayland
+    # Esto es ESENCIAL para buen rendimiento en Wayland
+    nvidiaPersistenced = true;
   };
 
 #WAYLAND CON LABWC
   services.xserver.enable = false;
   programs.labwc.enable = true;
-  
+
   # Pipewire para audio
   services.pipewire = {
     enable = true;
@@ -63,7 +67,22 @@
     wlr.enable = true;
     extraPortals = [
       pkgs.xdg-desktop-portal-gtk
+      pkgs.xdg-desktop-portal-wlr
     ];
+    # Preferir el portal para wlroots (labwc es wlroots-based)
+    config.common.default = "wlr";
+  };
+
+  # Flatpak: habilitar servicio y paquetes útiles
+  services.flatpak.enable = true;
+
+  # Añadir repo Flathub automáticamente al arrancar el sistema (si aún no existe)
+  systemd.services.flatpak-repo = {
+    wantedBy = [ "multi-user.target" ];
+    path = [ pkgs.flatpak ];
+    script = ''
+      flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+    '';
   };
 ##################
 
@@ -72,23 +91,24 @@
     wget
     ghostty
     git
-    tealdeer
-    xclip
     bat
-    alacritty
     fastfetch
     vscode
     firefox
-
+    kdePackages.dolphin
     # Wayland y labwc
     labwc
     waybar
-    foot
+    wdisplays
     wlr-randr
     kanshi
     grim
     slurp
-    
+    rofi
+    # Flatpak y utilidades para desarrollo/build
+    flatpak
+    flatpak-builder
+
     # Utilidades NVIDIA
     nvtopPackages.nvidia
   ];
