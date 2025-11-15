@@ -5,13 +5,12 @@
     home.homeDirectory = "/home/loonbac";
     home.stateVersion = "25.05";
 
-    # Permitir que home-manager gestione sí mismo
     programs.home-manager.enable = true;
 
     programs.bash = {
         enable = true;
         shellAliases = {
-            btw = "echo uso wayland btw";
+            btw = "echo uso Nix-OS btw";
             ll = "ls -lah";
             gs = "git status";
             rebuild = "sudo nixos-rebuild switch --impure --flake ~/nixos-flakes#bytewave";
