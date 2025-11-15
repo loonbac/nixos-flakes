@@ -3,7 +3,7 @@
 {
   imports =
     [
-      ./hardware-configuration.nix
+      /etc/nixos/hardware-configuration.nix
     ];
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -43,15 +43,14 @@
     open = false;
     nvidiaSettings = true;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
-
-    # CRÍTICO: Habilitar DRM (Direct Rendering Manager) para Wayland
-    # Esto es ESENCIAL para buen rendimiento en Wayland
     nvidiaPersistenced = true;
   };
 
-#WAYLAND CON LABWC
-  services.xserver.enable = false;
-  programs.labwc.enable = true;
+  # COSMIC Desktop Environment
+  services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+  # Enable XWayland support in COSMIC
+  services.desktopManager.cosmic.xwayland.enable = true;
 
   # Pipewire para audio
   services.pipewire = {
@@ -64,13 +63,7 @@
   # Portales XDG para Wayland
   xdg.portal = {
     enable = true;
-    wlr.enable = true;
-    extraPortals = [
-      pkgs.xdg-desktop-portal-gtk
-      pkgs.xdg-desktop-portal-wlr
-    ];
-    # Preferir el portal para wlroots (labwc es wlroots-based)
-    config.common.default = "wlr";
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
   };
 
   # Flatpak: habilitar servicio y paquetes útiles
@@ -84,33 +77,28 @@
       flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
     '';
   };
-##################
 
   environment.systemPackages = with pkgs; [
     vim
     wget
-    ghostty
     git
-    bat
     fastfetch
     vscode
-    firefox
-    kdePackages.dolphin
-    # Wayland y labwc
-    labwc
-    waybar
-    wdisplays
-    wlr-randr
-    kanshi
-    grim
-    slurp
-    rofi
-    # Flatpak y utilidades para desarrollo/build
+    
+    # Flatpak
     flatpak
     flatpak-builder
 
     # Utilidades NVIDIA
     nvtopPackages.nvidia
   ];
+
+  # Montaje del disco para juegos
+  fileSystems."/home/loonbac/Juegos" = {
+    device = "UUID=cd03ab63-a704-4005-8670-2232af672439";
+    fsType = "ext4";
+    options = [ "defaults" "nofail" ];
+  };
+
   system.stateVersion = "25.05";
 }
