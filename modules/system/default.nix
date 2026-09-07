@@ -6,13 +6,15 @@ let
     name = "codex";
     runtimeInputs = [ pkgs.nodejs ];
     text = ''
-      codex_bin="/home/loonbac/.npm-global/bin/codex"
+      npm_prefix="$HOME/.npm-global"
+      codex_bin="$npm_prefix/bin/codex"
 
       # No actualices la instalación global en cada arranque: reemplazar sus
       # archivos mientras otra sesión está abierta puede retirar temporalmente
       # binarios auxiliares como codex-code-mode-host.
       if [ ! -x "$codex_bin" ]; then
-        if ! npm install --global --no-audit --no-fund --loglevel=error @openai/codex@latest >/dev/null; then
+        if ! npm install --global --prefix "$npm_prefix" \
+          --no-audit --no-fund --loglevel=error @openai/codex@latest >/dev/null; then
           echo "codex: failed to install @openai/codex@latest" >&2
           exit 1
         fi
@@ -109,6 +111,7 @@ in
     PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libpq.dev}/lib/pkgconfig";
     LD_LIBRARY_PATH = "${pkgs.openssl.out}/lib:${pkgs.libpq.out}/lib";
     BROWSER = "zen-browser";
+    NPM_CONFIG_PREFIX = "/home/loonbac/.npm-global";
   };
 
   # ---- Navegador por defecto global (Zen Browser) ----
