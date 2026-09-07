@@ -169,7 +169,16 @@ let
     const previous = fs.existsSync(settingsPath) ? fs.statSync(settingsPath) : null;
     const mode = previous ? previous.mode & 0o777 : 0o644;
     const temporary = `''${settingsPath}.nix-tmp-''${process.pid}`;
-    fs.writeFileSync(temporary, `''${JSON.stringify(settings, null, 2)}\n`, { mode });
+    const sortKeys = (value) => {
+      if (Array.isArray(value)) return value.map(sortKeys);
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.keys(value).sort().map((key) => [key, sortKeys(value[key])]),
+        );
+      }
+      return value;
+    };
+    fs.writeFileSync(temporary, `''${JSON.stringify(sortKeys(settings), null, 2)}\n`, { mode });
     fs.renameSync(temporary, settingsPath);
     fs.chmodSync(settingsPath, mode);
   '';
@@ -271,22 +280,60 @@ let
     - No configurar `HTTP_PROXY` ni `HTTPS_PROXY` globalmente: el proxy se usa únicamente dentro de `dataimpulse_fetch_page` y `dataimpulse_check_exit_ip`.
   '';
 
+  rddRouting = writeText "pi-rdd-routing.md" ''
+    ## Implementation Routing
+
+    Route work for the requested outcome with the smallest useful topology. Every change takes exactly one implementation route: direct inline, delegated direct, or optional SDD.
+
+    - **Direct inline:** decide or verify from 1–3 files inline. Keep one mechanical, already-understood file change inline only when it needs no research and has no unresolved design decision.
+    - **Delegated direct:** delegate one narrow exploration when understanding needs 4+ files; delegate one writer for 2+ non-trivial files. Reading that prepares a write and broad research also delegate.
+    - **Optional SDD:** propose SDD only when durable proposal, spec, design, and tasks would materially reduce substantial ambiguity. SDD is selected only by an explicit request or an accepted proposal.
+    - File count, changed lines, size, or perceived risk alone never selects SDD and never forces a heavier route.
+    - These are implementation routes, not a ban on per-action delegation. Tests, builds, installs, and review actors may still use fresh workers without changing the selected route.
+    - Direct and delegated work never create SDD artifacts, prompts, phase attempts, or synthetic SDD runs.
+
+    ### Receipt-driven development is user-owned
+
+    The user controls receipt-driven development with a kill switch: `gentle-ai review mode enable|disable|status`.
+
+    - `status` is read-only. It reports the deciding source and the effective mode, and changes nothing.
+    - When the user asks to stop using receipt-driven development, run `disable`. Do not argue, do not work around it, and do not propose alternatives first.
+    - While it is disabled, keep implementing organically through direct inline, delegated direct, or optional SDD: do not start reviews, do not retry, do not reactivate it, and do not fall back to any retired path.
+    - Delivery under a disabled switch follows ordinary repository policy and reports `disabled/unmanaged`, never a fabricated approval.
+    - Never enable receipt-driven development on the user's behalf unless the user explicitly asks for it.
+  '';
+
   mergeAppendSystem = writeText "merge-pi-append-system.mjs" ''
     import fs from "node:fs";
 
-    const [targetPath, extraPath] = process.argv.slice(2);
+    const [targetPath, extraPath, routingPath, statePath] = process.argv.slice(2);
     const begin = "<!-- nixos:pi-portable-instructions -->";
     const end = "<!-- /nixos:pi-portable-instructions -->";
+    const routingBegin = "<!-- gentle-ai:agent-routing -->";
+    const routingEnd = "<!-- /gentle-ai:agent-routing -->";
     const extra = fs.readFileSync(extraPath, "utf8").trim();
+    const routing = fs.readFileSync(routingPath, "utf8").trim();
+    const state = fs.existsSync(statePath)
+      ? JSON.parse(fs.readFileSync(statePath, "utf8"))
+      : {};
     let content = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
 
     content = content.replace(new RegExp(`\\n?''${begin}[\\s\\S]*?''${end}\\n?`, "g"), "\n");
+    content = content.replace(
+      new RegExp(`\\n?''${routingBegin}[\\s\\S]*?''${routingEnd}\\n?`, "g"),
+      "\n",
+    );
     const legacyHeading = content.indexOf("\n## Investigación web\n");
     if (legacyHeading >= 0) content = content.slice(0, legacyHeading);
     content = content.trimEnd();
 
-    const block = `''${begin}\n''${extra}\n''${end}`;
-    fs.writeFileSync(targetPath, `''${content ? `''${content}\n\n` : ""}''${block}\n`, { mode: 0o644 });
+    const blocks = [];
+    if (state.rdd_mode === "on") {
+      blocks.push(`''${routingBegin}\n''${routing}\n''${routingEnd}`);
+    }
+    blocks.push(`''${begin}\n''${extra}\n''${end}`);
+    const managed = blocks.join("\n\n");
+    fs.writeFileSync(targetPath, `''${content ? `''${content}\n\n` : ""}''${managed}\n`, { mode: 0o644 });
   '';
 
   mergeState = writeText "merge-gentle-ai-state.mjs" ''
@@ -470,7 +517,11 @@ writeShellApplication {
       "$agent_dir/gentle-ai/support/"*.md
     node "${syncAgentRouting}" "$agent_dir" "${manifest}"
 
-    node "${mergeAppendSystem}" "$agent_dir/APPEND_SYSTEM.md" "${appendSystemExtra}"
+    node "${mergeAppendSystem}" \
+      "$agent_dir/APPEND_SYSTEM.md" \
+      "${appendSystemExtra}" \
+      "${rddRouting}" \
+      "$state_path"
 
     mcp_path="$agent_dir/mcp.json"
     if ! [ -L "$mcp_path" ] && [ -e "$mcp_path" ]; then
