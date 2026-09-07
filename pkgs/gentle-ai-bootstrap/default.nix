@@ -1,6 +1,7 @@
 { writeShellApplication
 , writeText
 , coreutils
+, git
 , nodejs
 , gentleAi
 , engram
@@ -317,7 +318,7 @@ in
 
 writeShellApplication {
   name = "gentle-ai-bootstrap";
-  runtimeInputs = [ coreutils nodejs gentleAi ];
+  runtimeInputs = [ coreutils git nodejs gentleAi ];
 
   text = ''
     agent_dir="''${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
