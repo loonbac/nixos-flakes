@@ -9,6 +9,17 @@
 { config, lib, pkgs, ... }:
 
 let
+  keyboardLayout = config.services.xserver.xkb.layout;
+
+  # La plantilla permanece como KDL válido (y se puede validar directamente),
+  # pero cada host recibe el mismo layout que X11 y la consola.
+  niriConfig = pkgs.runCommand "niri-config.kdl" { } ''
+    substitute ${./config.kdl} "$out" \
+      --replace-fail \
+        'layout "es" // HOST_KEYBOARD_LAYOUT' \
+        'layout "${keyboardLayout}" // HOST_KEYBOARD_LAYOUT'
+  '';
+
   defaultAccent = pkgs.writeText "niri-default-accent.kdl" ''
     layout {
         border {
@@ -27,7 +38,7 @@ let
     export HOME="$TMPDIR/home"
     mkdir -p "$HOME/.config/niri"
     cp ${defaultAccent} "$HOME/.config/niri/accent.kdl"
-    niri validate --config ${./config.kdl}
+    niri validate --config ${niriConfig}
     touch "$out"
   '';
 in
@@ -56,7 +67,7 @@ in
   };
 
   # Config gestionada por NixOS: niri la lee como fallback desde /etc/niri.
-  environment.etc."niri/config.kdl".source = ./config.kdl;
+  environment.etc."niri/config.kdl".source = niriConfig;
 
   system.extraDependencies = [ niriConfigCheck ];
 

@@ -5,9 +5,9 @@
 
 input {
     keyboard {
-        // Layout español, consistente con el resto del sistema.
+        // Layout predeterminado. Nix sustituye esta línea con el layout del host.
         xkb {
-            layout "es"
+            layout "es" // HOST_KEYBOARD_LAYOUT
         }
         numlock
     }

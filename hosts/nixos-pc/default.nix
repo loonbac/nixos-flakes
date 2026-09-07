@@ -8,5 +8,10 @@
   ];
 
   networking.hostName = "nixos-pc";
+
+  # Este equipo usa un teclado físico ANSI estadounidense.
+  services.xserver.xkb.layout = "us";
+  console.keyMap = "us";
+
   system.stateVersion = "26.05";
 }

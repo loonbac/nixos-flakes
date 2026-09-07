@@ -45,10 +45,11 @@ in
 
   # Keymap de X11 y consola
   services.xserver.xkb = {
-    layout = "es";
+    # Los hosts con teclado físico distinto pueden sobrescribir este valor.
+    layout = lib.mkDefault "es";
     variant = "";
   };
-  console.keyMap = "es";
+  console.keyMap = lib.mkDefault "es";
 
   # ---- Paquetes no libres (ej. microcode Intel) ----
   nixpkgs.config.allowUnfree = true;
