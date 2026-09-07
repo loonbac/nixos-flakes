@@ -10,14 +10,25 @@
 
 let
   keyboardLayout = config.services.xserver.xkb.layout;
+  hostOutputConfig = lib.optionalString
+    (config.networking.hostName == "nixos-pc") ''
+      // Monitor principal de nixos-pc (RDG GM3CC236 por DisplayPort).
+      output "DP-2" {
+          mode "1920x1080@144.002"
+      }
+    '';
 
   # La plantilla permanece como KDL válido (y se puede validar directamente),
-  # pero cada host recibe el mismo layout que X11 y la consola.
+  # pero cada host recibe el mismo layout que X11 y la consola, además de sus
+  # ajustes específicos de monitor.
   niriConfig = pkgs.runCommand "niri-config.kdl" { } ''
     substitute ${./config.kdl} "$out" \
       --replace-fail \
         'layout "es" // HOST_KEYBOARD_LAYOUT' \
-        'layout "${keyboardLayout}" // HOST_KEYBOARD_LAYOUT'
+        'layout "${keyboardLayout}" // HOST_KEYBOARD_LAYOUT' \
+      --replace-fail \
+        '// HOST_OUTPUT_CONFIG' \
+        ${lib.escapeShellArg hostOutputConfig}
   '';
 
   defaultAccent = pkgs.writeText "niri-default-accent.kdl" ''

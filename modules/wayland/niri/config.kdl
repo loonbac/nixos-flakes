@@ -20,6 +20,9 @@ input {
     }
 }
 
+// Nix reemplaza este marcador con ajustes de salida exclusivos del host.
+// HOST_OUTPUT_CONFIG
+
 // Tema de cursor: Win11OSX (Xcursor nativo de Linux, en pkgs/win11osx-cursor).
 cursor {
     xcursor-theme "Win11OSX"
