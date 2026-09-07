@@ -135,7 +135,7 @@ binds {
 // sólido, para no tapar la transparencia de las ventanas.
 window-rule {
     match app-id=".*"
-    exclude app-id=r#"^(waydroid(\..*)?|com\.waydroid\..*|com\.zhiliaoapp\.musically\.go|loon-launch|dev\.loonbac\.loonlaunch)$"#
+    exclude app-id=r#"^(waydroid(\..*)?|com\.waydroid\..*|loon-launch|dev\.loonbac\.loonlaunch)$"#
     open-maximized true
 
     geometry-corner-radius 12
@@ -161,18 +161,6 @@ window-rule {
     geometry-corner-radius 18
     clip-to-geometry true
     draw-border-with-background false
-}
-
-// TikTok Lite (Waydroid multi-ventana): una ventana de app, no el
-// escritorio Android. Tamaño vertical tipo teléfono.
-window-rule {
-    match app-id=r#"^(waydroid(\..*)?|com\.waydroid\..*|com\.zhiliaoapp\.musically\.go)$"#
-    match title="TikTok Lite"
-
-    open-floating true
-    open-maximized false
-    default-column-width { fixed 420; }
-    default-window-height { fixed 890; }
 }
 
 // loon-bar: barra de tareas Wayland Layer Shell (panel anclado en todos los

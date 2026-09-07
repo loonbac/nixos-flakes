@@ -82,27 +82,4 @@ in
       ${waydroid-app}/bin/waydroid-hide-chrome || true
     fi
   '';
-
-  # Solo TikTok Lite. El .desktop que genera Waydroid apunta a
-  # `waydroid app launch` directo y falla si la sesión no está corriendo;
-  # el nuestro lanza vía waydroid-app (levanta contenedor+sesión bajo demanda).
-  environment.etc."waydroid/tiktok-lite.desktop".text = ''
-    [Desktop Entry]
-    Type=Application
-    Name=TikTok Lite
-    Comment=Android TikTok Lite (Waydroid)
-    Exec=waydroid-app com.zhiliaoapp.musically.go
-    Icon=/home/loonbac/.local/share/waydroid/data/icons/com.zhiliaoapp.musically.go.png
-    Categories=X-WayDroid-App;
-    Terminal=false
-  '';
-
-  # Instalar el .desktop en el home (ruta absoluta: systemd no expande ~).
-  # `r` borra restos de TikTok normal (symlink gestionado + el que genera Waydroid).
-  systemd.tmpfiles.rules = [
-    "d /home/loonbac/.local/share/applications 0755 loonbac users -"
-    "r /home/loonbac/.local/share/applications/tiktok.desktop"
-    "r /home/loonbac/.local/share/applications/waydroid.com.zhiliaoapp.musically.desktop"
-    "L+ /home/loonbac/.local/share/applications/tiktok-lite.desktop - - - - /etc/waydroid/tiktok-lite.desktop"
-  ];
 }

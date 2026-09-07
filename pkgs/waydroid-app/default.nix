@@ -1,12 +1,9 @@
 # Paquete "waydroid-app": lanza una app de Android como ventana de escritorio.
 #
-# "Abrir TikTok Lite" debe sentirse como una app nativa: sin el launcher de
-# Android, sin barra de navegación, sin reloj ni avisos de actualización.
-# Waydroid tiene dos capas que pueden estar caídas (contenedor systemd y
-# sesión gráfica). Este wrapper las levanta bajo demanda y deja la app en
-# multi-ventana (una ventana Wayland por app).
-#
-#   waydroid-app com.zhiliaoapp.musically.go   # TikTok Lite
+# Las apps deben abrir como ventanas nativas: sin el launcher de Android, sin
+# barra de navegación, reloj ni avisos de actualización. Waydroid tiene dos
+# capas que pueden estar caídas (contenedor systemd y sesión gráfica). Este
+# wrapper las levanta bajo demanda y deja la app en multi-ventana.
 #
 # Requisitos:
 #   - El usuario puede controlar waydroid-container sin sudo vía polkit
