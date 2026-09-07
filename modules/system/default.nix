@@ -21,6 +21,12 @@ let
       exec "$codex_bin" "$@"
     '';
   };
+
+  # Packet Tracer depende de un instalador propietario aportado manualmente
+  # al store de la laptop. No bloquear hosts nuevos que no poseen ese archivo.
+  packetTracerPackages = lib.optionals
+    (builtins.elem config.networking.hostName [ "loon-laptop" "korosoft" ])
+    [ (pkgs.callPackage ../../pkgs/cisco-packet-tracer { }) ];
 in
 {
   imports = [
@@ -174,9 +180,6 @@ in
     obs-studio
     zoom-us
     prismlauncher
-    # Packet Tracer is reproducible by the hash of the user-supplied Cisco
-    # installer; see pkgs/cisco-packet-tracer and README.md.
-    (pkgs.callPackage ../../pkgs/cisco-packet-tracer { })
     # Moonlight: cliente de streaming remoto (Sunshine/GameStream) para
     # ver y controlar el PC desde otros dispositivos.
     moonlight-qt
@@ -251,5 +254,5 @@ in
     inxi               # resumen completo de hardware y sistema
     lshw               # listado detallado de hardware
     iw                 # estado y configuración de interfaces WiFi
-  ];
+  ] ++ packetTracerPackages;
 }
