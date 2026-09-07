@@ -440,6 +440,7 @@ writeShellApplication {
     }
     retire_binary "$HOME/go/bin/gentle-ai"
     retire_binary "$HOME/.local/bin/engram"
+    retire_binary "$HOME/.local/bin/gga"
     retire_binary "$HOME/.npm-global/bin/pi"
 
     # A development-binary selector points outside the Nix store and makes a

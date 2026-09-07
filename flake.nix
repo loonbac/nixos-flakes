@@ -112,6 +112,7 @@
         screen-brightness = pkgs.callPackage ./pkgs/screen-brightness { };
         gentle-ai = gentleAi;
         engram = engram;
+        gga = pkgs.callPackage ./pkgs/gga { };
         pi = piStack;
         gentle-ai-bootstrap = gentleAiBootstrap;
         cisco-packet-tracer = pkgsUnfree.callPackage ./pkgs/cisco-packet-tracer { };

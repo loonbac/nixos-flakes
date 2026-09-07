@@ -215,7 +215,8 @@ niri-backdrop stop         # detiene el fondo
 El stack está declarado en `modules/programs/gentle-ai/` y sus paquetes están
 en `pkgs/`. Gentle-AI está fijado en la versión estable `2.6.0`; Gentle-Pi usa
 el snapshot reproducible de `main` `8103f0fa` con Gentle Agents y Gentle Todo.
-Engram está fijado en `1.20.0` y Pi en `0.84.4`, con estas extensiones exactas:
+Engram está fijado en `1.20.0`, GGA en `2.10.1` y Pi en `0.84.4`, con estas
+extensiones exactas:
 
 - `gentle-pi` `main@8103f0fa`
 - `gentle-engram` `0.1.10`
@@ -241,10 +242,10 @@ las rutas de modelos para subagentes se reconcilian desde el flake en cada
 host. Las skills presentes en la laptop de referencia también se distribuyen
 desde el store. Credenciales, sesiones y cachés de modelos permanecen fuera de
 Git.
-También retira los binarios mutables antiguos de `~/go/bin`, `~/.local/bin` y
-`~/.npm-global/bin` hacia ese backup para que no haya dos implementaciones en
-`PATH`. No reemplaza credenciales, el catálogo descubierto de modelos,
-sesiones ni la base de datos de Engram.
+También retira los binarios mutables antiguos de `~/go/bin`, `~/.local/bin`
+(incluido GGA) y `~/.npm-global/bin` hacia ese backup para que no haya dos
+implementaciones en `PATH`. No reemplaza credenciales, el catálogo descubierto
+de modelos, sesiones ni la base de datos de Engram.
 
 ```bash
 gentle-ai-bootstrap

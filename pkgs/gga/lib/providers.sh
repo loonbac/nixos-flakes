@@ -1,0 +1,1368 @@
+#!/usr/bin/env bash
+
+# ============================================================================
+# Gentleman Guardian Angel - Provider Functions
+# ============================================================================
+# Handles execution for different AI providers:
+# - claude: Anthropic Claude Code CLI
+# - gemini: Google Gemini CLI
+# - codex: OpenAI Codex CLI
+# - opencode: OpenCode CLI (optional :model)
+# - cursor: Cursor Agent CLI (optional :model)
+# - kilo: Kilo CLI (optional :model)
+# - kiro: Kiro CLI
+# - ollama:<model>: Ollama with specified model
+# - lmstudio[:model]: LM Studio (optional model)
+# - github:<model>: GitHub Models (OpenAI-compatible API)
+# - minimax[:model]: MiniMax OpenAI-compatible API
+# ============================================================================
+
+# Colors (in case sourced independently)
+RED='\033[0;31m'
+NC='\033[0m'
+
+# ============================================================================
+# Provider Validation
+# ============================================================================
+
+validate_provider() {
+  local provider="$1"
+  local base_provider="${provider%%:*}"
+
+  case "$base_provider" in
+    claude)
+      if ! command -v claude &> /dev/null; then
+        echo -e "${RED}❌ Claude CLI not found${NC}"
+        echo ""
+        echo "Install Claude Code CLI:"
+        echo "  https://claude.ai/code"
+        echo ""
+        return 1
+      fi
+      ;;
+    gemini)
+      if ! command -v gemini &> /dev/null; then
+        echo -e "${RED}❌ Gemini CLI not found${NC}"
+        echo ""
+        echo "Install Gemini CLI:"
+        echo "  npm install -g @anthropic-ai/gemini-cli"
+        echo "  # or"
+        echo "  brew install gemini"
+        echo ""
+        return 1
+      fi
+      ;;
+    codex)
+      if ! command -v codex &> /dev/null; then
+        echo -e "${RED}❌ Codex CLI not found${NC}"
+        echo ""
+        echo "Install OpenAI Codex CLI:"
+        echo "  npm install -g @openai/codex"
+        echo "  # or"
+        echo "  brew install --cask codex"
+        echo ""
+        return 1
+      fi
+      ;;
+    opencode)
+      if ! command -v opencode &> /dev/null; then
+        echo -e "${RED}❌ OpenCode CLI not found${NC}"
+        echo ""
+        echo "Install OpenCode CLI:"
+        echo "  https://opencode.ai"
+        echo ""
+        return 1
+      fi
+      ;;
+    cursor)
+      if ! get_cursor_command >/dev/null; then
+        echo -e "${RED}❌ Cursor Agent CLI not found${NC}"
+        echo ""
+        echo "Install Cursor Agent CLI:"
+        echo "  curl https://cursor.com/install -fsS | bash"
+        echo ""
+        return 1
+      fi
+      ;;
+    kilo)
+      if ! command -v kilo &> /dev/null; then
+        echo -e "${RED}❌ Kilo CLI not found${NC}"
+        echo ""
+        echo "Install Kilo CLI:"
+        echo "  npm install -g @kilocode/cli"
+        echo ""
+        return 1
+      fi
+      ;;
+    kiro)
+      if ! command -v kiro-cli &> /dev/null; then
+        echo -e "${RED}❌ Kiro CLI not found${NC}"
+        echo ""
+        echo "Install Kiro CLI:"
+        echo "  https://kiro.dev/downloads/"
+        echo ""
+        return 1
+      fi
+      local model="${provider#*:}"
+      if [[ "$model" != "$provider" && -n "$model" ]]; then
+        echo -e "${RED}❌ Kiro provider does not support inline model selection${NC}"
+        echo ""
+        echo "Configure Kiro's default model with kiro-cli settings instead."
+        echo ""
+        return 1
+      fi
+      ;;
+    ollama)
+      if ! command -v ollama &> /dev/null; then
+        echo -e "${RED}❌ Ollama not found${NC}"
+        echo ""
+        echo "Install Ollama:"
+        echo "  https://ollama.ai/download"
+        echo "  # or"
+        echo "  brew install ollama"
+        echo ""
+        return 1
+      fi
+      # Check if model is specified
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        echo -e "${RED}❌ Ollama requires a model${NC}"
+        echo ""
+        echo "Specify model in provider config:"
+        echo "  PROVIDER=\"ollama:llama3.2\""
+        echo "  PROVIDER=\"ollama:codellama\""
+        echo ""
+        return 1
+      fi
+      ;;
+    lmstudio)
+      # Check if curl is available for API calls
+      if ! command -v curl &> /dev/null; then
+        echo -e "${RED}❌ curl not found${NC}"
+        echo ""
+        echo "Install curl:"
+        echo "  # Most systems have it pre-installed"
+        echo "  # Ubuntu/Debian: sudo apt-get install curl"
+        echo "  # macOS: brew install curl"
+        echo ""
+        return 1
+      fi
+      ;;
+    github)
+      # GitHub Models requires gh CLI for authentication
+      if ! command -v gh &> /dev/null; then
+        echo -e "${RED}❌ gh CLI not found${NC}"
+        echo ""
+        echo "Install GitHub CLI:"
+        echo "  brew install gh"
+        echo "  # or: https://cli.github.com"
+        echo ""
+        echo "Then authenticate:"
+        echo "  gh auth login"
+        echo ""
+        return 1
+      fi
+      # GitHub Models requires curl for API calls
+      if ! command -v curl &> /dev/null; then
+        echo -e "${RED}❌ curl not found${NC}"
+        echo ""
+        echo "Install curl:"
+        echo "  # Most systems have it pre-installed"
+        echo "  # Ubuntu/Debian: sudo apt-get install curl"
+        echo "  # macOS: brew install curl"
+        echo ""
+        return 1
+      fi
+      # Model is required for GitHub Models
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        echo -e "${RED}❌ GitHub Models requires a model${NC}"
+        echo ""
+        echo "Specify model in provider config:"
+        echo "  PROVIDER=\"github:gpt-4o\""
+        echo "  PROVIDER=\"github:gpt-4.1\""
+        echo "  PROVIDER=\"github:deepseek-r1\""
+        echo "  PROVIDER=\"github:grok-3\""
+        echo ""
+        echo "See available models at: https://github.com/marketplace/models"
+        echo ""
+        return 1
+      fi
+      ;;
+    minimax)
+      if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
+        echo -e "${RED}❌ MINIMAX_API_KEY not set${NC}"
+        echo ""
+        echo "Get your API key from:"
+        echo "  https://platform.minimax.io/user-center/basic-information/interface-key"
+        echo ""
+        echo "Then export it:"
+        echo "  export MINIMAX_API_KEY=your-api-key"
+        echo ""
+        return 1
+      fi
+      if ! command -v curl &> /dev/null; then
+        echo -e "${RED}❌ curl not found${NC}"
+        echo ""
+        echo "Install curl:"
+        echo "  # Most systems have it pre-installed"
+        echo "  # Ubuntu/Debian: sudo apt-get install curl"
+        echo "  # macOS: brew install curl"
+        echo ""
+        return 1
+      fi
+      if ! command -v python3 &> /dev/null; then
+        echo -e "${RED}❌ python3 not found${NC}"
+        echo ""
+        echo "MiniMax response parsing requires python3."
+        echo ""
+        return 1
+      fi
+      ;;
+    *)
+      echo -e "${RED}❌ Unknown provider: $provider${NC}"
+      echo ""
+      echo "Supported providers:"
+      echo "  - claude"
+      echo "  - gemini"
+      echo "  - codex"
+      echo "  - opencode"
+      echo "  - cursor[:model]"
+      echo "  - kilo[:model]"
+      echo "  - kiro"
+      echo "  - ollama:<model>"
+      echo "  - lmstudio[:model]"
+      echo "  - github:<model>"
+      echo "  - minimax[:model]"
+      echo ""
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+# ============================================================================
+# Provider Execution
+# ============================================================================
+
+execute_provider() {
+  local provider="$1"
+  local prompt="$2"
+  local base_provider="${provider%%:*}"
+
+  case "$base_provider" in
+    claude)
+      execute_claude "$prompt"
+      ;;
+    gemini)
+      execute_gemini "$prompt"
+      ;;
+    codex)
+      execute_codex "$prompt"
+      ;;
+    opencode)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" ]]; then
+        model=""
+      fi
+      execute_opencode "$model" "$prompt"
+      ;;
+    cursor)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" ]]; then
+        model=""
+      fi
+      execute_cursor "$model" "$prompt"
+      ;;
+    kilo)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" ]]; then
+        model=""
+      fi
+      execute_kilo "$model" "$prompt"
+      ;;
+    kiro)
+      execute_kiro "$prompt"
+      ;;
+    ollama)
+      local model="${provider#*:}"
+      execute_ollama "$model" "$prompt"
+      ;;
+    lmstudio)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" ]]; then
+        model=""
+      fi
+      execute_lmstudio "$model" "$prompt"
+      ;;
+    github)
+      local model="${provider#*:}"
+      execute_github_models "$model" "$prompt"
+      ;;
+    minimax)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        model="$MINIMAX_DEFAULT_MODEL"
+      fi
+      execute_minimax "$model" "$prompt"
+      ;;
+  esac
+}
+
+# ============================================================================
+# Individual Provider Implementations
+# ============================================================================
+
+execute_claude() {
+  local prompt="$1"
+  
+  # Claude CLI accepts prompt via stdin pipe
+  # Redirect stderr to stdout to capture any error messages
+  printf '%s' "$prompt" | claude --print 2>&1
+  return "${PIPESTATUS[1]}"
+}
+
+execute_gemini() {
+  local prompt="$1"
+  
+  if ! is_gemini_authenticated; then
+    echo -e "${RED}❌ Gemini CLI is not authenticated${NC}" >&2
+    echo ""
+    echo "Please log in to Gemini CLI first:"
+    echo "  gemini login"
+    echo ""
+    echo "Or visit: https://gemini.google.com"
+    return 1
+  fi
+  
+  gemini -p "$prompt" 2>&1
+  return $?
+}
+
+is_gemini_authenticated() {
+  gemini whoami &>/dev/null
+}
+
+execute_codex() {
+  local prompt="$1"
+
+  # Codex uses exec subcommand for non-interactive mode.
+  # Capture ONLY the final assistant message to avoid transcript noise
+  # (instructions can include both STATUS lines and confuse parsers).
+  local output_file
+  if ! output_file=$(mktemp "${TEMP:-${TMPDIR:-/tmp}}/gga_codex_last_msg.XXXXXX"); then
+    echo "Error: Failed to create temporary Codex output file" >&2
+    return 1
+  fi
+
+  # Silence Codex event stream and emit only the final message file content.
+  printf '%s' "$prompt" | codex exec --output-last-message "$output_file" - >/dev/null 2>&1
+  local codex_status=${PIPESTATUS[1]}
+
+  if [[ -f "$output_file" && -s "$output_file" ]]; then
+    cat "$output_file"
+  fi
+
+  rm -f "$output_file"
+  return "$codex_status"
+}
+
+get_opencode_option_args() {
+  local variant="${GGA_OPENCODE_VARIANT:-${OPENCODE_VARIANT:-}}"
+  local agent="${GGA_OPENCODE_AGENT:-${OPENCODE_AGENT:-}}"
+
+  if [[ -n "$variant" ]]; then
+    printf '%s\n' "--variant" "$variant"
+  fi
+  if [[ -n "$agent" ]]; then
+    printf '%s\n' "--agent" "$agent"
+  fi
+}
+
+execute_opencode() {
+  local model="$1"
+  local prompt="$2"
+  local opencode_args=()
+
+  while IFS= read -r arg; do
+    opencode_args+=("$arg")
+  done < <(get_opencode_option_args)
+
+  # OpenCode CLI accepts prompt as positional argument.
+  # The timeout path uses stdin to avoid ARG_MAX for normal GGA runs.
+  if [[ -n "$model" ]]; then
+    opencode run --model "$model" "${opencode_args[@]}" -- "$prompt" 2>&1
+  else
+    opencode run "${opencode_args[@]}" -- "$prompt" 2>&1
+  fi
+  return $?
+}
+
+get_cursor_command() {
+  if command -v cursor-agent >/dev/null 2>&1; then
+    echo "cursor-agent"
+    return 0
+  fi
+  if command -v agent >/dev/null 2>&1; then
+    echo "agent"
+    return 0
+  fi
+  return 1
+}
+
+execute_cursor() {
+  local model="$1"
+  local prompt="$2"
+  local cursor_cmd
+
+  if ! cursor_cmd=$(get_cursor_command); then
+    echo "Error: Cursor Agent CLI not found" >&2
+    return 1
+  fi
+
+  # Cursor Agent headless mode accepts the prompt through stdin when -p is set.
+  # The timeout path also uses stdin to avoid ARG_MAX for normal GGA runs.
+  if [[ -n "$model" ]]; then
+    printf '%s' "$prompt" | "$cursor_cmd" -p --model "$model" --output-format text 2>&1
+  else
+    printf '%s' "$prompt" | "$cursor_cmd" -p --output-format text 2>&1
+  fi
+  return "${PIPESTATUS[1]}"
+}
+
+execute_kilo() {
+  local model="$1"
+  local prompt="$2"
+
+  # Kilo CLI reads stdin when no positional message is passed.
+  # The timeout path also uses stdin to avoid ARG_MAX for normal GGA runs.
+  if [[ -n "$model" ]]; then
+    printf '%s' "$prompt" | kilo run --auto --model "$model" 2>&1
+  else
+    printf '%s' "$prompt" | kilo run --auto 2>&1
+  fi
+  return "${PIPESTATUS[1]}"
+}
+
+execute_kiro() {
+  local prompt="$1"
+  local kiro_instruction="Review the complete GGA prompt provided on stdin and respond with the required STATUS line."
+
+  # Kiro headless mode requires a small positional prompt. The large review
+  # prompt travels through stdin as context to avoid ARG_MAX failures.
+  printf '%s' "$prompt" | kiro-cli chat --no-interactive "$kiro_instruction" 2>&1
+  return "${PIPESTATUS[1]}"
+}
+
+execute_ollama() {
+  local model="$1"
+  local prompt="$2"
+  local host="${OLLAMA_HOST:-http://localhost:11434}"
+  
+  # Validate OLLAMA_HOST format to prevent injection attacks
+  if ! validate_ollama_host "$host"; then
+    echo "Error: Invalid OLLAMA_HOST format. Expected: http(s)://hostname(:port)" >&2
+    return 1
+  fi
+  
+  # Use python3 + curl if available (cleaner output, supports remote hosts)
+  # Falls back to CLI with ANSI stripping if python3 is not available
+  if command -v python3 &> /dev/null && command -v curl &> /dev/null; then
+    execute_ollama_api "$model" "$prompt" "$host"
+    return $?
+  else
+    execute_ollama_cli "$model" "$prompt"
+    return $?
+  fi
+}
+
+# Validate OLLAMA_HOST to prevent command injection
+# Accepts: http(s)://hostname(:port) with optional trailing slash
+validate_ollama_host() {
+  local host="$1"
+  
+  # Regex: http or https, followed by hostname (alphanumeric, dots, hyphens), 
+  # optional port, optional trailing slash
+  if [[ "$host" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?/?$ ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Execute Ollama via REST API using curl + python3
+# This approach produces clean output without terminal escape codes
+execute_ollama_api() {
+  local model="$1"
+  local prompt="$2"
+  local host="$3"
+  
+  # Build JSON payload safely using python3 to escape special characters
+  # Using stdin to avoid ARG_MAX limits with large prompts
+  local json_payload
+  if ! json_payload=$(printf '%s' "$prompt" | python3 -c "
+import sys, json
+prompt = sys.stdin.read()
+model = sys.argv[1]
+payload = json.dumps({
+    'model': model,
+    'prompt': prompt,
+    'stream': False
+})
+print(payload)
+" "$model" 2>&1); then
+    echo "Error: Failed to build JSON payload" >&2
+    echo "$json_payload" >&2
+    return 1
+  fi
+  
+  # Remove trailing slash from host if present
+  host="${host%/}"
+  
+  # Call Ollama API. Send the payload through stdin so large prompts do not
+  # travel through argv and hit ARG_MAX on Git Bash/MSYS or macOS.
+  local api_response
+  api_response=$(printf '%s' "$json_payload" | curl -s --fail-with-body \
+    -H "Content-Type: application/json" \
+    --data-binary @- \
+    "${host}/api/generate" 2>&1)
+  
+  local curl_status=$?
+  if [[ $curl_status -ne 0 ]]; then
+    echo "Error: Failed to connect to Ollama at $host" >&2
+    echo "$api_response" >&2
+    return 1
+  fi
+  
+  # Extract response safely using python3
+  printf '%s' "$api_response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    response = data.get('response', '')
+    if response:
+        print(response)
+    else:
+        error = data.get('error', 'Unknown error from Ollama')
+        print(f'Error: {error}', file=sys.stderr)
+        sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f'Error: Invalid JSON response from Ollama: {e}', file=sys.stderr)
+    sys.exit(1)
+"
+  return $?
+}
+
+# Execute Ollama via CLI (fallback when python3/curl not available)
+# Strips ANSI escape codes from output to fix STATUS detection
+execute_ollama_cli() {
+  local model="$1"
+  local prompt="$2"
+  
+  # Run ollama CLI, suppress stderr (spinner/progress), strip ANSI codes from stdout
+  # The 2>/dev/null removes spinner and progress messages
+  # The sed removes any remaining ANSI escape sequences
+  ollama run "$model" "$prompt" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+  return "${PIPESTATUS[0]}"
+}
+
+execute_lmstudio() {
+  local model="$1"
+  local prompt="$2"
+  local host="${LMSTUDIO_HOST:-http://localhost:1234/v1}"
+
+  # Validate LMSTUDIO_HOST format
+  if ! validate_lmstudio_host "$host"; then
+    echo "Error: Invalid LMSTUDIO_HOST format. Expected: http(s)://hostname(:port)(/v1)" >&2
+    return 1
+  fi
+
+  # Use python3 for clean JSON parsing if available, otherwise basic response extraction
+  if command -v python3 &> /dev/null; then
+    execute_lmstudio_api "$model" "$prompt" "$host"
+    return $?
+  else
+    execute_lmstudio_api_fallback "$model" "$prompt" "$host"
+    return $?
+  fi
+}
+
+validate_lmstudio_host() {
+  local host="$1"
+
+  # Regex: http or https, followed by hostname (alphanumeric, dots, hyphens),
+  # optional port, optional /v1 path
+  if [[ "$host" =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/v1)?$ ]]; then
+    return 0
+  fi
+  return 1
+}
+
+execute_lmstudio_api() {
+  local model="$1"
+  local prompt="$2"
+  local host="$3"
+
+  # Default model if not specified
+  if [[ -z "$model" ]]; then
+    model="local-model"
+  fi
+
+  # Build JSON payload
+  local json_payload
+  if ! json_payload=$(python3 -c "
+import sys, json
+payload = json.dumps({
+    'model': '$model',
+    'messages': [{'role': 'user', 'content': sys.stdin.read()}],
+    'temperature': 0.7,
+    'stream': False
+})
+print(payload)
+" <<< "$prompt" 2>&1); then
+    echo "Error: Failed to build JSON payload" >&2
+    echo "$json_payload" >&2
+    return 1
+  fi
+
+  # Ensure host ends with /v1
+  if [[ ! "$host" =~ /v1$ ]]; then
+    host="${host}/v1"
+  fi
+
+  local endpoint="${host}/chat/completions"
+
+  # Call LM Studio API. Send the payload through stdin so large prompts do not
+  # travel through argv and hit ARG_MAX on Git Bash/MSYS or macOS.
+  local api_response
+  api_response=$(printf '%s' "$json_payload" | curl -s --fail-with-body \
+    -H "Content-Type: application/json" \
+    --data-binary @- \
+    "$endpoint" 2>&1)
+
+  local curl_status=$?
+  if [[ $curl_status -ne 0 ]]; then
+    echo "Error: Failed to connect to LM Studio at $host" >&2
+    echo "$api_response" >&2
+    return 1
+  fi
+
+  # Extract response
+  printf '%s' "$api_response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    response = data.get('choices', [{}])[0].get('message', {}).get('content', '')
+    if response:
+        print(response)
+    else:
+        error = data.get('error', {}).get('message', 'Unknown error from LM Studio')
+        print(f'Error: {error}', file=sys.stderr)
+        sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f'Error: Invalid JSON response from LM Studio: {e}', file=sys.stderr)
+    sys.exit(1)
+except (KeyError, IndexError, TypeError) as e:
+    print(f'Error: Unexpected response format from LM Studio', file=sys.stderr)
+    sys.exit(1)
+"
+  return $?
+}
+
+execute_lmstudio_api_fallback() {
+  local model="$1"
+  local prompt="$2"
+  local host="$3"
+
+  # Default model if not specified
+  if [[ -z "$model" ]]; then
+    model="local-model"
+  fi
+
+  # Build JSON payload manually (less safe, but works without python3)
+  local escaped_prompt=""
+  local line
+  local first_line=true
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//\\/\\\\}"
+    line="${line//\"/\\\"}"
+    line="${line//$'\t'/\\t}"
+    if [[ "$first_line" == true ]]; then
+      escaped_prompt="$line"
+      first_line=false
+    else
+      escaped_prompt+="\\n$line"
+    fi
+  done <<< "$prompt"
+
+  local json_payload
+  json_payload="{\"model\":\"$model\",\"messages\":[{\"role\":\"user\",\"content\":\""
+  json_payload+="$escaped_prompt"
+  json_payload+="\"}],\"temperature\":0.7,\"stream\":false}"
+
+  # Ensure host ends with /v1
+  if [[ ! "$host" =~ /v1$ ]]; then
+    host="${host}/v1"
+  fi
+
+  local endpoint="${host}/chat/completions"
+
+  # Call LM Studio API. Send the payload through stdin so large prompts do not
+  # travel through argv and hit ARG_MAX on Git Bash/MSYS or macOS.
+  local api_response
+  api_response=$(printf '%s' "$json_payload" | curl -s --fail-with-body \
+    -H "Content-Type: application/json" \
+    --data-binary @- \
+    "$endpoint" 2>&1)
+
+  local curl_status=$?
+  if [[ $curl_status -ne 0 ]]; then
+    echo "Error: Failed to connect to LM Studio at $host" >&2
+    echo "$api_response" >&2
+    return 1
+  fi
+
+  # Extract response using sed/grep
+  printf '%s' "$api_response" | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | sed 's/\\n/\n/g; s/\\"/"/g'
+  return $?
+}
+
+# ============================================================================
+# GitHub Models Implementation
+# ============================================================================
+
+# GitHub Models API endpoint (OpenAI-compatible)
+GITHUB_MODELS_ENDPOINT="https://models.inference.ai.azure.com/chat/completions"
+
+execute_github_models() {
+  local model="$1"
+  local prompt="$2"
+
+  # Get auth token from gh CLI
+  local token
+  if ! token=$(gh auth token 2>&1); then
+    echo "Error: GitHub CLI authentication failed" >&2
+    echo "Run 'gh auth login' to authenticate" >&2
+    return 1
+  fi
+
+  # Build JSON payload safely using python3
+  local json_payload
+  if ! json_payload=$(printf '%s' "$prompt" | python3 -c "
+import sys, json
+prompt = sys.stdin.read()
+model = sys.argv[1]
+payload = json.dumps({
+    'model': model,
+    'messages': [
+        {'role': 'system', 'content': 'You are a helpful code review assistant.'},
+        {'role': 'user', 'content': prompt}
+    ],
+    'temperature': 0.2
+})
+print(payload)
+" "$model" 2>&1); then
+    echo "Error: Failed to build JSON payload" >&2
+    echo "$json_payload" >&2
+    return 1
+  fi
+
+  # Call GitHub Models API
+  # Use -s (silent) without --fail-with-body so we always get the response body.
+  # The python3 parser handles error responses from the API. Send the payload
+  # through stdin so large prompts do not travel through argv.
+  local api_response
+  api_response=$(printf '%s' "$json_payload" | curl -sS \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $token" \
+    --data-binary @- \
+    "$GITHUB_MODELS_ENDPOINT" 2>&1)
+
+  local curl_status=$?
+  if [[ $curl_status -ne 0 ]]; then
+    echo "Error: Failed to connect to GitHub Models API" >&2
+    echo "$api_response" >&2
+    return 1
+  fi
+
+  # Extract response using python3
+  printf '%s' "$api_response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    # Check for error response
+    if 'error' in data:
+        error = data['error']
+        if isinstance(error, dict):
+            msg = error.get('message', 'Unknown error from GitHub Models')
+        else:
+            msg = str(error)
+        print(f'Error: {msg}', file=sys.stderr)
+        sys.exit(1)
+    # Extract content from choices
+    choices = data.get('choices', [])
+    if not choices:
+        print('Error: Unexpected response format from GitHub Models', file=sys.stderr)
+        sys.exit(1)
+    content = choices[0].get('message', {}).get('content', '')
+    if content:
+        print(content)
+    else:
+        print('Error: Empty response from GitHub Models', file=sys.stderr)
+        sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f'Error: Invalid JSON response from GitHub Models: {e}', file=sys.stderr)
+    sys.exit(1)
+except (KeyError, IndexError, TypeError) as e:
+    print(f'Error: Unexpected response format from GitHub Models', file=sys.stderr)
+    sys.exit(1)
+"
+  return $?
+}
+
+# ============================================================================
+# MiniMax Implementation
+# ============================================================================
+
+MINIMAX_ENDPOINT="https://api.minimax.io/v1/chat/completions"
+MINIMAX_DEFAULT_MODEL="MiniMax-M3"
+
+execute_minimax() {
+  local model="$1"
+  local prompt="$2"
+
+  if [[ -z "$model" ]]; then
+    model="$MINIMAX_DEFAULT_MODEL"
+  fi
+
+  local api_key="${MINIMAX_API_KEY:-}"
+  if [[ -z "$api_key" ]]; then
+    echo "Error: MINIMAX_API_KEY not set" >&2
+    return 1
+  fi
+
+  local json_payload
+  if ! json_payload=$(printf '%s' "$prompt" | python3 -c "
+import sys, json
+prompt = sys.stdin.read()
+model = sys.argv[1]
+payload = json.dumps({
+    'model': model,
+    'messages': [
+        {'role': 'system', 'content': 'You are a helpful code review assistant.'},
+        {'role': 'user', 'content': prompt}
+    ],
+    'temperature': 0.2,
+    'stream': False
+})
+print(payload)
+" "$model" 2>&1); then
+    echo "Error: Failed to build JSON payload" >&2
+    echo "$json_payload" >&2
+    return 1
+  fi
+
+  local curl_config_file
+  if ! curl_config_file=$(mktemp "${TEMP:-${TMPDIR:-/tmp}}/gga_minimax_curl.XXXXXX"); then
+    echo "Error: Failed to create temporary MiniMax curl config" >&2
+    return 1
+  fi
+  chmod 600 "$curl_config_file" 2>/dev/null || true
+  if ! {
+    printf '%s\n' 'header = "Content-Type: application/json"'
+    printf 'header = "Authorization: Bearer %s"\n' "$api_key"
+  } > "$curl_config_file"; then
+    echo "Error: Failed to write temporary MiniMax curl config" >&2
+    rm -f "$curl_config_file"
+    return 1
+  fi
+
+  local api_response
+  api_response=$(printf '%s' "$json_payload" | curl -sS \
+    --config "$curl_config_file" \
+    --data-binary @- \
+    "$MINIMAX_ENDPOINT" 2>&1)
+
+  local curl_status=$?
+  rm -f "$curl_config_file"
+  if [[ $curl_status -ne 0 ]]; then
+    echo "Error: Failed to connect to MiniMax API" >&2
+    echo "$api_response" >&2
+    return 1
+  fi
+
+  printf '%s' "$api_response" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    if 'error' in data:
+        error = data['error']
+        if isinstance(error, dict):
+            msg = error.get('message') or error.get('status_msg') or str(error)
+        else:
+            msg = str(error)
+        print(f'Error: {msg}', file=sys.stderr)
+        sys.exit(1)
+    if 'base_resp' in data and isinstance(data['base_resp'], dict):
+        base_resp = data['base_resp']
+        status_code = base_resp.get('status_code')
+        if status_code not in (None, 0):
+            msg = base_resp.get('status_msg', 'Unknown error from MiniMax')
+            print(f'Error: {msg}', file=sys.stderr)
+            sys.exit(1)
+    choices = data.get('choices', [])
+    if not choices:
+        print('Error: Unexpected response format from MiniMax', file=sys.stderr)
+        sys.exit(1)
+    content = choices[0].get('message', {}).get('content', '')
+    if content:
+        print(content)
+    else:
+        print('Error: Empty response from MiniMax', file=sys.stderr)
+        sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f'Error: Invalid JSON response from MiniMax: {e}', file=sys.stderr)
+    sys.exit(1)
+except (KeyError, IndexError, TypeError) as e:
+    print('Error: Unexpected response format from MiniMax', file=sys.stderr)
+    sys.exit(1)
+"
+  return $?
+}
+
+# ============================================================================
+# Provider Info
+# ============================================================================
+
+get_provider_info() {
+  local provider="$1"
+  local base_provider="${provider%%:*}"
+
+  case "$base_provider" in
+    claude)
+      echo "Anthropic Claude Code CLI"
+      ;;
+    gemini)
+      echo "Google Gemini CLI"
+      ;;
+    codex)
+      echo "OpenAI Codex CLI"
+      ;;
+    opencode)
+      local model="${provider#*:}"
+      local variant="${GGA_OPENCODE_VARIANT:-${OPENCODE_VARIANT:-}}"
+      local agent="${GGA_OPENCODE_AGENT:-${OPENCODE_AGENT:-}}"
+      local details=()
+
+      if [[ "$model" != "$provider" ]]; then
+        details+=("model: $model")
+      fi
+      if [[ -n "$variant" ]]; then
+        details+=("variant: $variant")
+      fi
+      if [[ -n "$agent" ]]; then
+        details+=("agent: $agent")
+      fi
+
+      if [[ ${#details[@]} -eq 0 ]]; then
+        echo "OpenCode CLI"
+      else
+        local IFS=', '
+        echo "OpenCode CLI (${details[*]})"
+      fi
+      ;;
+    cursor)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        echo "Cursor Agent CLI"
+      else
+        echo "Cursor Agent CLI (model: $model)"
+      fi
+      ;;
+    kilo)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        echo "Kilo CLI"
+      else
+        echo "Kilo CLI (model: $model)"
+      fi
+      ;;
+    kiro)
+      echo "Kiro CLI"
+      ;;
+    ollama)
+      local model="${provider#*:}"
+      echo "Ollama (model: $model)"
+      ;;
+    lmstudio)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        echo "LM Studio"
+      else
+        echo "LM Studio (model: $model)"
+      fi
+      ;;
+    github)
+      local model="${provider#*:}"
+      echo "GitHub Models (model: $model)"
+      ;;
+    minimax)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        model="$MINIMAX_DEFAULT_MODEL"
+      fi
+      echo "MiniMax (model: $model)"
+      ;;
+    *)
+      echo "Unknown provider"
+      ;;
+  esac
+}
+
+# ============================================================================
+# Timeout Wrapper with Progress Feedback
+# ============================================================================
+
+collect_process_tree() {
+  local root_pid="$1"
+  local child
+
+  echo "$root_pid"
+  if command -v pgrep >/dev/null 2>&1; then
+    while IFS= read -r child; do
+      [[ -n "$child" ]] || continue
+      collect_process_tree "$child"
+    done < <(pgrep -P "$root_pid" 2>/dev/null || true)
+  fi
+}
+
+kill_process_list() {
+  local signal="$1"
+  shift
+  local pid
+
+  for pid in "$@"; do
+    kill "-$signal" "$pid" 2>/dev/null || true
+  done
+}
+
+# Execute a command with timeout and progress feedback
+# Usage: execute_with_timeout <timeout_seconds> <provider_name> <command...>
+# Returns: 0 on success, 124 on timeout, other on command failure
+execute_with_timeout() {
+  local timeout_seconds="$1"
+  local provider_name="$2"
+  shift 2
+
+  local output_file
+  output_file=$(mktemp "${TEMP:-${TMPDIR:-/tmp}}/gga_timeout_out.XXXXXX")
+  local exit_code_file
+  exit_code_file=$(mktemp "${TEMP:-${TMPDIR:-/tmp}}/gga_timeout_ec.XXXXXX")
+
+  # Determine if we can use fancy spinner (TTY mode)
+  local use_spinner=false
+  if [[ -t 2 ]] && [[ -z "${CI:-}" ]] && [[ -z "${GGA_NO_SPINNER:-}" ]]; then
+    use_spinner=true
+  fi
+
+  # Show initial status
+  if [[ "$use_spinner" == "true" ]]; then
+    printf "  Waiting for %s (timeout: %ds, Ctrl+C to cancel)...\n" "$provider_name" "$timeout_seconds" >&2
+  else
+    echo "  Waiting for $provider_name response (timeout: ${timeout_seconds}s)..." >&2
+  fi
+
+  # Run command in background and capture output (stdout and stderr combined)
+  (
+    "$@" > "$output_file" 2>&1
+    echo $? > "$exit_code_file"
+  ) &
+  local cmd_pid=$!
+
+  # Spinner characters and timing
+  local spin_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+  local spin_idx=0
+  local start_time=$SECONDS
+  local last_print=0
+
+  # Wait for command with timeout, showing progress
+  while kill -0 "$cmd_pid" 2>/dev/null; do
+    local elapsed=$((SECONDS - start_time))
+
+    if [[ $elapsed -ge $timeout_seconds ]]; then
+      # Timeout reached - kill the process tree. Snapshot descendants before
+      # TERM so ignored signals or a fast-exiting wrapper cannot reparent child
+      # CLIs before the KILL pass.
+      local -a process_tree=()
+      while IFS= read -r tree_pid; do
+        [[ -n "$tree_pid" ]] && process_tree+=("$tree_pid")
+      done < <(collect_process_tree "$cmd_pid")
+      kill_process_list TERM "${process_tree[@]}"
+      sleep 0.5
+      kill_process_list KILL "${process_tree[@]}"
+      wait "$cmd_pid" 2>/dev/null || true
+
+      # Clear spinner line if in TTY mode
+      [[ "$use_spinner" == "true" ]] && printf "\r\033[K" >&2
+
+      # Output timeout error
+      echo "" >&2
+      echo "TIMEOUT: Provider did not respond within ${timeout_seconds} seconds." >&2
+      echo "" >&2
+      echo "Possible causes:" >&2
+      echo "  - Large number of files being reviewed" >&2
+      echo "  - Slow network connection" >&2
+      echo "  - Provider API issues or rate limiting" >&2
+      echo "" >&2
+      echo "Solutions:" >&2
+      echo "  - Increase TIMEOUT in .gga config (current: ${timeout_seconds}s)" >&2
+      echo "  - Review fewer files at once" >&2
+      echo "  - Check provider status/logs" >&2
+
+      rm -f "$output_file" "$exit_code_file"
+      return 124
+    fi
+
+    # Update progress display
+    if [[ "$use_spinner" == "true" ]]; then
+      local char="${spin_chars:spin_idx:1}"
+      spin_idx=$(( (spin_idx + 1) % ${#spin_chars} ))
+      printf "\r\033[K  \033[0;36m%s\033[0m Waiting for %s (%ds)..." "$char" "$provider_name" "$elapsed" >&2
+      sleep 0.1
+    else
+      # Non-TTY: print update every 30 seconds
+      if [[ $elapsed -ge $((last_print + 30)) ]]; then
+        echo "  ... still waiting (${elapsed}s elapsed)" >&2
+        last_print=$elapsed
+      fi
+      sleep 1
+    fi
+  done
+
+  # Command finished - get exit code
+  wait "$cmd_pid" 2>/dev/null || true
+
+  local exit_code
+  if [[ -f "$exit_code_file" ]]; then
+    exit_code=$(cat "$exit_code_file")
+  else
+    exit_code=1
+  fi
+
+  # Trace mode: show internal state
+  if [[ -n "${GGA_TRACE:-}" ]]; then
+    echo "[TRACE] exit_code=$exit_code" >&2
+    echo "[TRACE] output_file=$output_file size=$(wc -c < "$output_file" 2>/dev/null || echo 0)" >&2
+  fi
+
+  # Output the result (stdout + stderr combined)
+  if [[ -f "$output_file" ]] && [[ -s "$output_file" ]]; then
+    cat "$output_file"
+  elif [[ "${exit_code:-1}" -ne 0 ]]; then
+    echo "(provider returned no output)"
+  fi
+
+  rm -f "$output_file" "$exit_code_file"
+  return "${exit_code:-1}"
+}
+
+# ============================================================================
+# Provider Execution with Timeout
+# ============================================================================
+
+# Execute provider with timeout and progress feedback
+# Usage: execute_provider_with_timeout <provider> <prompt> <timeout>
+#
+# For CLI providers (claude, gemini, codex, opencode, cursor, kilo, kiro), the prompt is written to a
+# temp file and piped via stdin to avoid ARG_MAX limits on Windows (~8KB-32KB),
+# macOS (~256KB), and Linux (~128KB-2MB). Only the file path (short string) is
+# passed as an argument to execute_with_timeout, never the prompt content.
+execute_provider_with_timeout() {
+  local provider="$1"
+  local prompt="$2"
+  local timeout="${3:-300}"
+  local base_provider="${provider%%:*}"
+  local result=0
+
+  case "$base_provider" in
+    claude|gemini|codex|opencode|cursor|kilo|kiro)
+      # Write prompt to temp file ONCE to avoid ARG_MAX limits.
+      # This is critical for large PRs that generate prompts > 128KB-256KB.
+      # Only CLI providers are handled here. API-based providers keep their
+      # existing execution path and should be fixed separately if needed.
+      local prompt_file
+      if ! prompt_file=$(mktemp "${TEMP:-${TMPDIR:-/tmp}}/gga_prompt.XXXXXX"); then
+        echo "Error: Failed to create temporary prompt file" >&2
+        return 1
+      fi
+      if ! printf '%s' "$prompt" > "$prompt_file"; then
+        echo "Error: Failed to write provider prompt to temporary file" >&2
+        rm -f "$prompt_file"
+        return 1
+      fi
+
+      # Ensure cleanup on exit (success, error, or signal).
+      # trap RETURN fires when the function returns for any reason.
+      trap 'rm -f "$prompt_file"' RETURN
+
+      case "$base_provider" in
+        claude)
+          # The wrapper uses exec so the timeout watcher owns the provider process,
+          # not an intermediate shell or pipeline that can survive timeout cleanup.
+          # shellcheck disable=SC2016
+          execute_with_timeout "$timeout" "Claude" \
+            bash -c 'exec claude --print < "$1"' _ "$prompt_file"
+          result=$?
+          ;;
+        gemini)
+          # Gemini appends stdin to the non-interactive prompt value.
+          # shellcheck disable=SC2016
+          execute_with_timeout "$timeout" "Gemini" \
+            bash -c 'exec gemini -p "" < "$1"' _ "$prompt_file"
+          result=$?
+          ;;
+        codex)
+          # Capture only the final assistant message while still feeding the
+          # large prompt through stdin, not argv.
+          local codex_output_file
+          if ! codex_output_file=$(mktemp "${TEMP:-${TMPDIR:-/tmp}}/gga_codex_last_msg.XXXXXX"); then
+            echo "Error: Failed to create temporary Codex output file" >&2
+            rm -f "$prompt_file"
+            trap - RETURN
+            return 1
+          fi
+          # shellcheck disable=SC2016
+          execute_with_timeout "$timeout" "Codex" \
+            bash -c 'exec codex exec --output-last-message "$2" - < "$1" >/dev/null 2>&1' _ "$prompt_file" "$codex_output_file"
+          result=$?
+          if [[ $result -ne 124 && -f "$codex_output_file" && -s "$codex_output_file" ]]; then
+            cat "$codex_output_file"
+          fi
+          rm -f "$codex_output_file"
+          ;;
+        opencode)
+          local model="${provider#*:}"
+          local opencode_args=()
+          if [[ "$model" == "$provider" ]]; then
+            model=""
+          fi
+          while IFS= read -r arg; do
+            opencode_args+=("$arg")
+          done < <(get_opencode_option_args)
+
+          if [[ -n "$model" ]]; then
+            # Pass model and option args positionally to avoid shell injection.
+            # opencode run (without positional message args) reads from stdin automatically.
+            # NOTE: Do NOT use '-' as opencode doesn't support explicit stdin flag.
+            # shellcheck disable=SC2016
+            execute_with_timeout "$timeout" "OpenCode" \
+              bash -c 'exec opencode run --model "$2" "${@:3}" < "$1"' _ "$prompt_file" "$model" "${opencode_args[@]}"
+          else
+            # shellcheck disable=SC2016
+            execute_with_timeout "$timeout" "OpenCode" \
+              bash -c 'exec opencode run "${@:2}" < "$1"' _ "$prompt_file" "${opencode_args[@]}"
+          fi
+          result=$?
+          ;;
+        cursor)
+          local model="${provider#*:}"
+          local cursor_cmd
+          if [[ "$model" == "$provider" ]]; then
+            model=""
+          fi
+          if ! cursor_cmd=$(get_cursor_command); then
+            echo "Error: Cursor Agent CLI not found" >&2
+            rm -f "$prompt_file"
+            trap - RETURN
+            return 1
+          fi
+          if [[ -n "$model" ]]; then
+            # Keep prompt content out of argv while passing command/model as
+            # positional shell arguments.
+            # shellcheck disable=SC2016
+            execute_with_timeout "$timeout" "Cursor Agent" \
+              bash -c 'exec "$2" -p --model "$3" --output-format text < "$1"' _ "$prompt_file" "$cursor_cmd" "$model"
+          else
+            # shellcheck disable=SC2016
+            execute_with_timeout "$timeout" "Cursor Agent" \
+              bash -c 'exec "$2" -p --output-format text < "$1"' _ "$prompt_file" "$cursor_cmd"
+          fi
+          result=$?
+          ;;
+        kilo)
+          local model="${provider#*:}"
+          if [[ "$model" == "$provider" ]]; then
+            model=""
+          fi
+          if [[ -n "$model" ]]; then
+            # Kilo run reads stdin when no positional message args are passed.
+            # shellcheck disable=SC2016
+            execute_with_timeout "$timeout" "Kilo" \
+              bash -c 'exec kilo run --auto --model "$2" < "$1"' _ "$prompt_file" "$model"
+          else
+            # shellcheck disable=SC2016
+            execute_with_timeout "$timeout" "Kilo" \
+              bash -c 'exec kilo run --auto < "$1"' _ "$prompt_file"
+          fi
+          result=$?
+          ;;
+        kiro)
+          # Kiro headless mode requires a small positional prompt. The large
+          # review prompt travels through stdin as context to avoid ARG_MAX.
+          # shellcheck disable=SC2016
+          execute_with_timeout "$timeout" "Kiro" \
+            bash -c 'exec kiro-cli chat --no-interactive "$2" < "$1"' _ "$prompt_file" "Review the complete GGA prompt provided on stdin and respond with the required STATUS line."
+          result=$?
+          ;;
+      esac
+
+      # Cleanup temp file (also handled by trap, but explicit is clearer)
+      rm -f "$prompt_file"
+      trap - RETURN
+      ;;
+    ollama)
+      local model="${provider#*:}"
+      local host="${OLLAMA_HOST:-http://localhost:11434}"
+
+      if ! validate_ollama_host "$host"; then
+        echo "Error: Invalid OLLAMA_HOST format. Expected: http(s)://hostname(:port)" >&2
+        return 1
+      fi
+
+      execute_with_timeout "$timeout" "Ollama ($model)" execute_ollama "$model" "$prompt"
+      result=$?
+      ;;
+    lmstudio)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" ]]; then
+        model=""
+      fi
+      local host="${LMSTUDIO_HOST:-http://localhost:1234/v1}"
+
+      if ! validate_lmstudio_host "$host"; then
+        echo "Error: Invalid LMSTUDIO_HOST format. Expected: http(s)://hostname(:port)(/v1)" >&2
+        return 1
+      fi
+
+      execute_with_timeout "$timeout" "LM Studio" execute_lmstudio "$model" "$prompt"
+      result=$?
+      ;;
+    minimax)
+      local model="${provider#*:}"
+      if [[ "$model" == "$provider" || -z "$model" ]]; then
+        model="$MINIMAX_DEFAULT_MODEL"
+      fi
+
+      execute_with_timeout "$timeout" "MiniMax ($model)" execute_minimax "$model" "$prompt"
+      result=$?
+      ;;
+    *)
+      # Generic fallback: wrap execute_provider with timeout
+      # This ensures new providers added later still get timeout support
+      execute_with_timeout "$timeout" "$base_provider" execute_provider "$provider" "$prompt"
+      result=$?
+      ;;
+  esac
+
+  return $result
+}
