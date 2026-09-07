@@ -138,7 +138,8 @@
     "format-icons": {
       "low": "󰃞",
       "medium": "󰃟",
-      "high": "󰃠"
+      "high": "󰃠",
+      "unavailable": ""
     },
     "return-type": "json",
     "exec": "screen-brightness json",

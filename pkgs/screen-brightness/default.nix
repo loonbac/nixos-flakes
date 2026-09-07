@@ -6,12 +6,20 @@ pkgs.writeShellScriptBin "screen-brightness" ''
   set -euo pipefail
 
   BRIGHTNESSCTL="${pkgs.brightnessctl}/bin/brightnessctl"
+  CMD="''${1:-get}"
   SYS_DIR="/sys/class/backlight/intel_backlight"
   if [ ! -d "$SYS_DIR" ]; then
     SYS_DIR="$(find /sys/class/backlight -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -1 || true)"
   fi
 
   if [ -z "$SYS_DIR" ] || [ ! -f "$SYS_DIR/max_brightness" ]; then
+    # Un monitor externo de escritorio no expone /sys/class/backlight. Waybar
+    # necesita una respuesta JSON válida para ocultar el módulo sin registrar
+    # un error cada segundo; los comandos de control sí conservan el fallo.
+    if [ "$CMD" = json ]; then
+      echo '{"text":"", "percentage":0, "alt":"unavailable", "tooltip":"Brillo no disponible"}'
+      exit 0
+    fi
     echo "screen-brightness: No se encontró interfaz backlight en /sys/class/backlight." >&2
     exit 1
   fi
@@ -62,8 +70,6 @@ pkgs.writeShellScriptBin "screen-brightness" ''
   notify_waybar() {
     pkill -RTMIN+8 waybar 2>/dev/null || true
   }
-
-  CMD="''${1:-get}"
 
   case "$CMD" in
     get)
