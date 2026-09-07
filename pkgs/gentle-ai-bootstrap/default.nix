@@ -11,6 +11,8 @@ let
   # These are the packages Pi loads from its user configuration. Their
   # versions are also recorded in package.json/package-lock.json.
   piPackages = [
+    "npm:pi-antigravity@0.7.2"
+    "npm:better-claude-code-ui@0.1.7"
     "${piStack}/lib/pi/node_modules/gentle-pi"
     "npm:gentle-engram@0.1.10"
     "npm:@juicesharp/rpiv-ask-user-question@2.7.1"
@@ -21,6 +23,8 @@ let
   ];
 
   piPackageNames = [
+    "pi-antigravity"
+    "better-claude-code-ui"
     "gentle-pi"
     "gentle-engram"
     "@juicesharp/rpiv-ask-user-question"
@@ -29,6 +33,69 @@ let
     "pi-commandcode-provider"
     "pi-mcp-adapter"
   ];
+
+  piSettings = {
+    defaultModel = "deepseek-v4-flash";
+    defaultProjectTrust = "always";
+    defaultProvider = "opencode-go";
+    defaultThinkingLevel = "high";
+    hideThinkingBlock = false;
+    markdown.mermaid = "streaming";
+    quietStartup = true;
+    showHardwareCursor = true;
+    theme = "claude-code-dark-ansi";
+    tuiMode = "fullscreen";
+  };
+
+  subagentModelProfiles = {
+    gentle-ai-explore = { model = "antigravity/gemini-3.8-flash"; effort = "medium"; };
+    gentle-ai-verify = { model = "openai-codex/gpt-5.6-terra"; effort = "high"; };
+    gentle-ai-worker = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    jd-fix-agent = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    jd-judge-a = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+    jd-judge-b = { model = "antigravity/claude-opus-4-6"; effort = "max"; };
+    pi-btw = { model = "commandcode/deepseek/deepseek-v4-flash"; effort = "max"; };
+    review-readability = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    review-reliability = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+    review-resilience = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    review-risk = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+    sdd-apply = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    sdd-archive = { model = "antigravity/gemini-3.8-flash"; effort = "medium"; };
+    sdd-design = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+    sdd-explore = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    sdd-init = { model = "antigravity/gemini-3.8-flash"; effort = "medium"; };
+    sdd-onboard = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    sdd-proposal = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+    sdd-research = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+    sdd-spec = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    sdd-status = { model = "antigravity/gemini-3.8-flash"; effort = "low"; };
+    sdd-sync = { model = "antigravity/gemini-3.8-flash"; effort = "medium"; };
+    sdd-tasks = { model = "antigravity/gemini-3.8-flash"; effort = "high"; };
+    sdd-verify = { model = "openai-codex/gpt-5.6-sol"; effort = "high"; };
+  };
+
+  gentleModelProfiles =
+    builtins.mapAttrs (_: profile: {
+      inherit (profile) model;
+      thinking = profile.effort;
+    }) subagentModelProfiles
+    // {
+      review-refuter = { model = "commandcode/deepseek/deepseek-v4-flash"; };
+      review-validator = { model = "commandcode/deepseek/deepseek-v4-flash"; };
+    };
+
+  gentlePortableConfig = {
+    backgroundSubagents = {
+      schema = "gentle-pi.background-subagents/v1";
+      policy = "on";
+    };
+    banner = {
+      color = "pink";
+      showRose = false;
+      showTextLogo = false;
+    };
+    persona.mode = "neutral";
+  };
 
   # Keep replaced extensions managed long enough to remove them from existing
   # settings.json files during the migration. Gentle Agents and Gentle Todo
@@ -40,7 +107,14 @@ let
   ];
 
   manifest = writeText "gentle-ai-manifest.json" (builtins.toJSON {
-    inherit piPackages piPackageNames;
+    inherit
+      piPackages
+      piPackageNames
+      piSettings
+      subagentModelProfiles
+      gentleModelProfiles
+      gentlePortableConfig
+      ;
     managedPiPackageNames = piPackageNames ++ retiredPiPackageNames;
     gentleAiVersion = gentleAi.version;
     engramVersion = engram.version;
@@ -64,6 +138,10 @@ let
     const settings = fs.existsSync(settingsPath)
       ? JSON.parse(fs.readFileSync(settingsPath, "utf8"))
       : {};
+
+    // La configuración portable del flake es autoritativa. Credenciales,
+    // modelos descubiertos y sesiones viven en archivos separados.
+    Object.assign(settings, manifest.piSettings);
 
     function packageName(spec) {
       const value = String(spec).replace(/^npm:/, "");
@@ -93,6 +171,121 @@ let
     fs.writeFileSync(temporary, `''${JSON.stringify(settings, null, 2)}\n`, { mode });
     fs.renameSync(temporary, settingsPath);
     fs.chmodSync(settingsPath, mode);
+  '';
+
+  syncAgentRouting = writeText "sync-pi-agent-routing.mjs" ''
+    import crypto from "node:crypto";
+    import fs from "node:fs";
+    import path from "node:path";
+
+    const [agentDir, manifestPath] = process.argv.slice(2);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    const profiles = manifest.subagentModelProfiles;
+    const configPath = path.join(agentDir, "subagents.json");
+
+    function writeJson(targetPath, value) {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      const temporary = `''${targetPath}.nix-tmp-''${process.pid}`;
+      fs.writeFileSync(temporary, `''${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
+      fs.renameSync(temporary, targetPath);
+      fs.chmodSync(targetPath, 0o644);
+    }
+
+    writeJson(configPath, { model_profiles: profiles });
+
+    const gentleDir = path.join(path.dirname(agentDir), "gentle-ai");
+    writeJson(path.join(gentleDir, "models.json"), manifest.gentleModelProfiles);
+    writeJson(
+      path.join(gentleDir, "background-subagents.json"),
+      manifest.gentlePortableConfig.backgroundSubagents,
+    );
+    writeJson(path.join(gentleDir, "banner.json"), manifest.gentlePortableConfig.banner);
+    writeJson(path.join(gentleDir, "persona.json"), manifest.gentlePortableConfig.persona);
+
+    for (const [name, profile] of Object.entries(profiles)) {
+      const agentPath = path.join(agentDir, "agents", `''${name}.md`);
+      if (!fs.existsSync(agentPath)) continue;
+
+      const lines = fs.readFileSync(agentPath, "utf8").split("\n");
+      const closing = lines.indexOf("---", 1);
+      if (lines[0] !== "---" || closing < 0) continue;
+
+      const frontmatter = lines
+        .slice(1, closing)
+        .filter((line) => !/^(model|thinking):/.test(line));
+      const description = frontmatter.findIndex((line) => line.startsWith("description:"));
+      const insertion = description < 0 ? frontmatter.length : description + 1;
+      frontmatter.splice(
+        insertion,
+        0,
+        `model: ''${profile.model}`,
+        `thinking: ''${profile.effort}`,
+      );
+
+      const updated = ["---", ...frontmatter, "---", ...lines.slice(closing + 1)].join("\n");
+      fs.writeFileSync(agentPath, updated, { mode: 0o644 });
+    }
+
+    // gentle-pi uses this manifest to distinguish its managed assets from
+    // user-created files. Record the final contents after adding model routes.
+    const managedAssets = {};
+    for (const relativeDir of ["agents", "chains", "gentle-ai/support"]) {
+      const directory = path.join(agentDir, relativeDir);
+      if (!fs.existsSync(directory)) continue;
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+        if (relativeDir === "agents" && entry.name === "pi-btw.md") continue;
+        const relativePath = path.posix.join(relativeDir, entry.name);
+        const contents = fs.readFileSync(path.join(directory, entry.name));
+        managedAssets[relativePath] = crypto.createHash("sha256").update(contents).digest("hex");
+      }
+    }
+    writeJson(
+      path.join(agentDir, "gentle-ai", "managed-assets.json"),
+      { schemaVersion: 1, assets: managedAssets },
+    );
+  '';
+
+  piBtwAgent = writeText "pi-btw.md" ''
+    ---
+    name: pi-btw
+    description: Dedicated model route for Pi BTW side questions.
+    model: commandcode/deepseek/deepseek-v4-flash
+    thinking: max
+    ---
+
+    This agent entry is the gentle-pi model route for the `@narumitw/pi-btw` `/btw` extension.
+    Choose its model and thinking level from `/gentle:models`; pi-btw reads the resulting route from gentle-pi.
+  '';
+
+  appendSystemExtra = writeText "pi-append-system-extra.md" ''
+    ## Investigación web
+
+    - Para leer cualquier página pública, usar `dataimpulse_fetch_page` (la tool MCP `fetch_page`) en vez de WebFetch/fetch_content.
+    - Excepción: si es documentación pública que no bloquea, WebFetch/fetch_content es más rápido y no consume gigas. El proxy es para lo que bloquea o lo que cambia por región.
+    - Si el contenido depende del país (precios, stock, disponibilidad, búsquedas), pasar `country` explícito siempre. Nunca asumir el país por defecto.
+    - Si hay más de un request al mismo sitio (paginado, login, flujo de 2 pasos), usar el mismo `session` en todos. Una IP por tarea, no una IP por request.
+    - Ante un 403 no reintentar igual: cambiar de país o fijar `session`.
+    - Ante un 503 `NO_RAY`, sacar el targeting de ciudad y dejar solo país.
+    - No configurar `HTTP_PROXY` ni `HTTPS_PROXY` globalmente: el proxy se usa únicamente dentro de `dataimpulse_fetch_page` y `dataimpulse_check_exit_ip`.
+  '';
+
+  mergeAppendSystem = writeText "merge-pi-append-system.mjs" ''
+    import fs from "node:fs";
+
+    const [targetPath, extraPath] = process.argv.slice(2);
+    const begin = "<!-- nixos:pi-portable-instructions -->";
+    const end = "<!-- /nixos:pi-portable-instructions -->";
+    const extra = fs.readFileSync(extraPath, "utf8").trim();
+    let content = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, "utf8") : "";
+
+    content = content.replace(new RegExp(`\\n?''${begin}[\\s\\S]*?''${end}\\n?`, "g"), "\n");
+    const legacyHeading = content.indexOf("\n## Investigación web\n");
+    if (legacyHeading >= 0) content = content.slice(0, legacyHeading);
+    content = content.trimEnd();
+
+    const block = `''${begin}\n''${extra}\n''${end}`;
+    fs.writeFileSync(targetPath, `''${content ? `''${content}\n\n` : ""}''${block}\n`, { mode: 0o644 });
   '';
 
   mergeState = writeText "merge-gentle-ai-state.mjs" ''
@@ -136,13 +329,13 @@ writeShellApplication {
 
     mkdir -p "$npm_node_modules" "$HOME/.gentle-ai"
 
-    # A fresh machine gets RDD enabled once. An explicit later `disable` is
-    # respected because an existing rdd_mode field is never overwritten here.
+    # A fresh machine gets RDD enabled once. Reconcile its managed prompt when
+    # it is already on, while respecting an explicit later `disable`.
     if [ -d "$repo_dir/.git" ]; then
-      if [ ! -f "$state_path" ] || ! node -e '
+      if [ ! -f "$state_path" ] || node -e '
         const fs = require("node:fs");
         const state = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-        process.exit(Object.prototype.hasOwnProperty.call(state, "rdd_mode") ? 0 : 1);
+        process.exit(!Object.prototype.hasOwnProperty.call(state, "rdd_mode") || state.rdd_mode === "on" ? 0 : 1);
       ' "$state_path"; then
         gentle-ai review mode enable --scope global --cwd "$repo_dir" >/dev/null
       fi
@@ -170,6 +363,8 @@ writeShellApplication {
     }
 
     for package_name in \
+      pi-antigravity \
+      better-claude-code-ui \
       gentle-pi \
       gentle-engram \
       @juicesharp/rpiv-ask-user-question \
@@ -178,6 +373,45 @@ writeShellApplication {
       pi-commandcode-provider \
       pi-mcp-adapter; do
       link_package "$package_name"
+    done
+
+    link_skill() {
+      skill_name="$1"
+      source="${piStack}/share/pi/skills/$skill_name"
+      destination="$agent_dir/skills/$skill_name"
+
+      if [ ! -d "$source" ]; then
+        echo "Missing Nix-managed Pi skill: $skill_name" >&2
+        exit 1
+      fi
+      mkdir -p "$agent_dir/skills"
+
+      if [ -L "$destination" ] && [ "$(readlink -f "$destination")" = "$source" ]; then
+        return
+      fi
+      if [ -e "$destination" ] || [ -L "$destination" ]; then
+        mkdir -p "$backup_dir/skills"
+        mv "$destination" "$backup_dir/skills/$skill_name"
+      fi
+      ln -s "$source" "$destination"
+    }
+
+    for skill_name in \
+      agents-sdk \
+      cloudflare \
+      cloudflare-email-service \
+      cloudflare-one \
+      cloudflare-one-migrations \
+      durable-objects \
+      impeccable \
+      sandbox-migrate-to-next \
+      sandbox-next \
+      sandbox-stable \
+      turnstile-spin \
+      web-perf \
+      workers-best-practices \
+      wrangler; do
+      link_skill "$skill_name"
     done
 
     # Remove the replaced subagent/todo implementations from the mutable Pi
@@ -207,11 +441,34 @@ writeShellApplication {
     retire_binary "$HOME/.local/bin/engram"
     retire_binary "$HOME/.npm-global/bin/pi"
 
+    # A development-binary selector points outside the Nix store and makes a
+    # clean host behave differently. Retire it like the mutable executables.
+    dev_binary_config="$HOME/.pi/gentle-ai/dev-binary.json"
+    if [ -e "$dev_binary_config" ] || [ -L "$dev_binary_config" ]; then
+      mkdir -p "$backup_dir/gentle-ai"
+      mv "$dev_binary_config" "$backup_dir/gentle-ai/dev-binary.json"
+    fi
+
     settings_path="$agent_dir/settings.json"
     if [ ! -f "$settings_path" ]; then
       printf '%s\n' '{}' > "$settings_path"
     fi
     node "${mergeSettings}" "$settings_path" "${manifest}"
+
+    # Install every managed Gentle Pi agent, chain and support contract from
+    # the pinned store closure. This makes an empty home fully functional.
+    mkdir -p "$agent_dir/agents" "$agent_dir/chains" "$agent_dir/gentle-ai/support"
+    cp "$stack_node_modules/gentle-pi/assets/agents/"*.md "$agent_dir/agents/"
+    cp "$stack_node_modules/gentle-pi/assets/chains/"*.md "$agent_dir/chains/"
+    cp "$stack_node_modules/gentle-pi/assets/support/"*.md "$agent_dir/gentle-ai/support/"
+    cp ${piBtwAgent} "$agent_dir/agents/pi-btw.md"
+    chmod 644 \
+      "$agent_dir/agents/"*.md \
+      "$agent_dir/chains/"*.md \
+      "$agent_dir/gentle-ai/support/"*.md
+    node "${syncAgentRouting}" "$agent_dir" "${manifest}"
+
+    node "${mergeAppendSystem}" "$agent_dir/APPEND_SYSTEM.md" "${appendSystemExtra}"
 
     mcp_path="$agent_dir/mcp.json"
     if ! [ -L "$mcp_path" ] && [ -e "$mcp_path" ]; then

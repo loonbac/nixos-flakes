@@ -10,7 +10,7 @@ buildNpmPackage rec {
   version = "0.84.4";
 
   src = ./.;
-  npmDepsHash = "sha256-YHDcxvit77mNm+HACq1fAHcsMCwCpxwj9urBcW4KJaE=";
+  npmDepsHash = "sha256-ipBj0K6qHb4ACBpjm8/nZJ29IwGvXVBRvLUDNURFIeg=";
   npmDepsFetcherVersion = 2;
   npmInstallFlags = [ "--ignore-scripts" ];
   npmRebuildFlags = [ "--ignore-scripts" ];
@@ -22,6 +22,19 @@ buildNpmPackage rec {
 
     mkdir -p "$out/lib/pi"
     cp -r node_modules package.json package-lock.json "$out/lib/pi/"
+
+    # La laptop contiene ajustes locales sobre better-claude-code-ui 0.1.7.
+    # Conservamos su cierre npm fijado, pero sustituimos el código y los temas
+    # por la copia versionada en este flake para reproducir exactamente la UI.
+    cp -r ${./better-claude-code-ui}/extension/. \
+      "$out/lib/pi/node_modules/better-claude-code-ui/extension/"
+    cp -r ${./better-claude-code-ui}/theme/. \
+      "$out/lib/pi/node_modules/better-claude-code-ui/theme/"
+
+    # Skills installed on the reference laptop are part of the portable Pi
+    # environment too. The bootstrap exposes these immutable copies per user.
+    mkdir -p "$out/share/pi"
+    cp -r ${./skills} "$out/share/pi/skills"
 
     # The pinned gentle-pi main snapshot carries parity with gentle-ai 2.6.0,
     # but its abandon serializer still emits the retired

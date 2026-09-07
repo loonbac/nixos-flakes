@@ -14,7 +14,8 @@ in
   environment.systemPackages = [ gentleAi engram piStack bootstrap ];
 
   # Reconcile ~/.pi and ~/.gentle-ai at login without npm, network access, or
-  # overwriting user credentials, models, sessions, or Engram's database.
+  # overwriting credentials, discovered model catalogs, sessions, or Engram's
+  # database.
   systemd.user.services.gentle-ai-bootstrap = {
     description = "Initialize the reproducible Gentle-AI, Pi and Engram stack";
     wantedBy = [ "default.target" ];

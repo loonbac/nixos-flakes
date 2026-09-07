@@ -224,6 +224,8 @@ Engram está fijado en `1.20.0` y Pi en `0.84.4`, con estas extensiones exactas:
 - `@juicesharp/rpiv-ask-user-question` `2.7.1`
 - `pi-btw` `0.4.1`
 - `pi-commandcode-provider` `0.6.0`
+- `pi-antigravity` `0.7.2`
+- `better-claude-code-ui` `0.1.7` con los ajustes locales versionados
 
 `gentle-ai-bootstrap` se ejecuta al iniciar la sesión y también puede
 ejecutarse manualmente. Enlaza los paquetes desde `/nix/store`, conserva una
@@ -231,12 +233,18 @@ copia de cualquier instalación anterior en `~/.pi/agent/backups/`, configura
 Engram en `~/.pi/agent/mcp.json` y activa RDD global en una instalación nueva.
 Gentle Agents reemplaza los plugins anteriores de subagentes y ejecuta cada
 agente como un hijo RPC aislado; Gentle Todo reemplaza `@juicesharp/rpiv-todo`.
-El bootstrap retira esas extensiones de forma recuperable, pero conserva los
-agentes, perfiles de modelos, sesiones y configuración del usuario.
+El bootstrap retira esas extensiones de forma recuperable, instala los agentes
+y perfiles declarativos y conserva las sesiones y los campos de configuración
+que el flake no gestiona.
+Las preferencias portables, el tema, el proveedor/modelo predeterminados y
+las rutas de modelos para subagentes se reconcilian desde el flake en cada
+host. Las skills presentes en la laptop de referencia también se distribuyen
+desde el store. Credenciales, sesiones y cachés de modelos permanecen fuera de
+Git.
 También retira los binarios mutables antiguos de `~/go/bin`, `~/.local/bin` y
 `~/.npm-global/bin` hacia ese backup para que no haya dos implementaciones en
-`PATH`. No reemplaza credenciales, modelos, sesiones ni la base de datos de
-Engram.
+`PATH`. No reemplaza credenciales, el catálogo descubierto de modelos,
+sesiones ni la base de datos de Engram.
 
 ```bash
 gentle-ai-bootstrap
