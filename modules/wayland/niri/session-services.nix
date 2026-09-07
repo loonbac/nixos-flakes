@@ -14,7 +14,13 @@ let
   resilientService = {
     Restart = "on-failure";
     RestartSec = "1s";
-    Environment = "HOME=/home/loonbac";
+    Environment = [
+      "HOME=/home/loonbac"
+      # Las unidades NixOS reciben por defecto un PATH mínimo. Los módulos de
+      # Waybar y los Exec de los .desktop necesitan los wrappers y paquetes
+      # del sistema completo, igual que los procesos lanzados por Niri.
+      "PATH=/run/wrappers/bin:/run/current-system/sw/bin"
+    ];
   };
 in
 {
