@@ -13,11 +13,6 @@ in
     themePackages = [ mac-plymouth ];
   };
 
-  # ---- Early KMS (Kernel Mode Setting temprano) ----
-  # Carga el driver de Intel en el initrd para fijar la resolución nativa
-  # antes de que Plymouth dibuje, eliminando el parpadeo de cambio de modo.
-  boot.initrd.kernelModules = [ "i915" ];
-
   # ---- Silent Boot (Arranque 100% limpio sin texto en pantalla) ----
   # Desactiva mensajes de verbose de NixOS stage 1 y del kernel
   boot.initrd.verbose = false;

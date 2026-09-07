@@ -6,6 +6,12 @@
 { config, lib, pkgs, ... }:
 
 let
+  fallbackWallpaper = pkgs.runCommand "dms-greeter-fallback.png" {
+    nativeBuildInputs = [ pkgs.imagemagick ];
+  } ''
+    magick -size 1920x1080 'xc:#11181A' "PNG:$out"
+  '';
+
   greeterColorsTemplate = pkgs.writeText "dms-greeter-colors.json" ''
     {
       "colors": {
@@ -138,10 +144,9 @@ EOF
         [ -f "/home/loonbac/Pictures/Wallpaper/$name" ] && wallpaper="/home/loonbac/Pictures/Wallpaper/$name"
       fi
       [ -z "$wallpaper" ] && wallpaper="$(ls /home/loonbac/Pictures/Wallpaper/*.{png,jpg,jpeg,webp} 2>/dev/null | head -n1)"
-      [ -n "$wallpaper" ] || {
-        echo "No hay wallpaper estático para generar los colores del greeter" >&2
-        exit 1
-      }
+      # Un home recién creado aún no tiene wallpapers. El fallback declarativo
+      # permite que el greeter arranque y conserva el tema oscuro del sistema.
+      [ -n "$wallpaper" ] || wallpaper="${fallbackWallpaper}"
       magick "$wallpaper" -resize "1920x1080^" -gravity center -extent 1920x1080 \
         -quality 85 /var/lib/dms-greeter/greeter_wallpaper_override.jpg
       chmod 644 /var/lib/dms-greeter/greeter_wallpaper_override.jpg

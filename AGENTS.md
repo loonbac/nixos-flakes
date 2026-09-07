@@ -1,23 +1,26 @@
-# AGENTS.md — loon-flakes (NixOS de loon-laptop)
+# AGENTS.md — loon-flakes (NixOS multi-host)
 
-Guía para agentes/asesores que trabajen sobre la configuración de NixOS de la
-máquina **loon-laptop**. Léelo completo antes de tocar nada: contiene el
+Guía para agentes/asesores que trabajen sobre la configuración de NixOS de las
+máquinas **loon-laptop** y **nixos-pc**. Léelo completo antes de tocar nada: contiene el
 contexto, los flujos exactos y las trampas aprendidas en el camino.
 
 ---
 
 ## Contexto general
 
-- **Máquina**: NixOS 26.05, hostname `loon-laptop` (antes se llamaba `korosoft`).
-- **Acceso SSH**: `ssh loonbac@192.168.0.2` con la clave `~/.ssh/id_ed25519`
+- **Máquinas**: NixOS 26.05; `loon-laptop` (Dell, `192.168.0.2`) y
+  `nixos-pc` (ASRock B550/Ryzen 7 5700X/NVIDIA, `192.168.0.10`).
+- **Acceso SSH**: `ssh loonbac@192.168.0.2` o
+  `ssh loonbac@192.168.0.10`, con la clave `~/.ssh/id_ed25519`
   (la máquina local ya tiene la clave en `authorized_keys`, **sin contraseña**).
   La autenticación por contraseña por SSH está **desactivada** (`PasswordAuthentication = false`).
 - **Repositorio de config**: `~/.nixos` en la máquina remota, es un repo git
   cuyo remote es `https://github.com/loonbac/loon-flakes.git` (rama `master`).
-- **`/etc/nixos`** son symlinks a `~/.nixos/hosts/loon-laptop/` — la fuente de
+- **`/etc/nixos`** son symlinks al directorio del host bajo `~/.nixos/hosts/` — la fuente de
   verdad es el repo, no `/etc/nixos`.
 - **`rebuild`**: comando custom del sistema (definido en `pkgs/rebuild/`) que
-  corre `sudo nixos-rebuild switch --flake .#loon-laptop` desde `~/.nixos`.
+  detecta el hostname y corre `sudo nixos-rebuild switch --flake .#<hostname>`
+  desde `~/.nixos`.
   También acepta `rebuild dry` (dry-run) y `rebuild update` (flake update + switch).
 
 ## Estructura del repo (`~/.nixos`)
@@ -36,9 +39,14 @@ contexto, los flujos exactos y las trampas aprendidas en el camino.
 │       ├── default.nix        # buildRustPackage
 │       └── src/main.rs
 ├── hosts/
-│   └── loon-laptop/
-│       ├── default.nix        # identidad del host (solo compone)
-│       ├── power.nix          # perfil AC/batería exclusivo del Dell
+│   ├── loon-laptop/
+│   │   ├── default.nix        # identidad del host (solo compone)
+│   │   ├── platform.nix       # hardware/políticas exclusivas del Dell
+│   │   ├── power.nix          # perfil AC/batería exclusivo del Dell
+│   │   └── hardware-configuration.nix  # autogenerado, NO tocar
+│   └── nixos-pc/
+│       ├── default.nix        # identidad del PC
+│       ├── platform.nix       # plataforma AMD/NVIDIA del PC
 │       └── hardware-configuration.nix  # autogenerado, NO tocar
 └── modules/
     ├── default.nix            # mod raíz: registra todos los módulos
@@ -63,7 +71,7 @@ contexto, los flujos exactos y las trampas aprendidas en el camino.
 2. **`git add -A`** — OBLIGATORIO: los flakes solo ven archivos *trackeados* por
    git. Si creaste un archivo nuevo y no lo agregas, el rebuild falla con
    `Path '...' is not tracked by Git`.
-3. **Aplicar**: `sudo nixos-rebuild switch --flake .#loon-laptop` (o `rebuild`).
+3. **Aplicar**: `sudo nixos-rebuild switch --flake .#<hostname>` (o `rebuild`).
 4. **Commit + push**:
    ```bash
    git add -A
@@ -150,6 +158,16 @@ y `cert` (solo claves), leído de `modules/services/openssh/ssh-auth-mode`.
   tenga `laptop-power-profile.service` ni
   `laptop-power-profile-session.service`.
 
+### Editar la plataforma de nixos-pc
+
+- **Identidad/composición**: `hosts/nixos-pc/default.nix`.
+- **Hardware y drivers**: `hosts/nixos-pc/platform.nix`.
+- **Particiones detectadas**: `hosts/nixos-pc/hardware-configuration.nix`.
+- Nunca importar `hosts/loon-laptop/power.nix` ni
+  `modules/system/extras-disk.nix` desde este host.
+- Validar ambos hosts: el PC no debe heredar el UUID extra, `i915`, `iHD` ni
+  `laptop-power-profile`; la laptop debe conservarlos.
+
 ### Editar el fix de Equibop (WebRTC + Tailscale)
 
 - **Archivo**: `modules/programs/equibop/default.nix` — override del paquete
@@ -211,9 +229,10 @@ y `cert` (solo claves), leído de `modules/services/openssh/ssh-auth-mode`.
 ```bash
 # Conexión
 ssh loonbac@192.168.0.2
+ssh loonbac@192.168.0.10
 
 # Rebuild (desde ~/.nixos, con sudo)
-cd ~/.nixos && sudo nixos-rebuild switch --flake .#loon-laptop
+cd ~/.nixos && sudo nixos-rebuild switch --flake .#$(hostname)
 rebuild              # equivalente, con dry/update extra
 
 # Verificar config de niri

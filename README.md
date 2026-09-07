@@ -1,4 +1,4 @@
-# loon-flakes — Configuración modular de NixOS (host: loon-laptop)
+# loon-flakes — Configuración modular multi-host de NixOS
 
 Configuración de NixOS organizada con **módulos pequeños, con
 responsabilidad única, componibles y declarativos**. Nada de monolitos.
@@ -21,9 +21,14 @@ responsabilidad única, componibles y declarativos**. Nada de monolitos.
 │   ├── gentle-ai-bootstrap/           # inicialización idempotente de estado
 │   └── cisco-packet-tracer/           # paquete con .deb propietario por hash
 ├── hosts/
-│   └── loon-laptop/
-│       ├── default.nix                # "main.rs" — identidad + hardware, solo compone
-│       ├── power.nix                  # perfil AC/batería exclusivo del Dell
+│   ├── loon-laptop/
+│   │   ├── default.nix                # "main.rs" — identidad, solo compone
+│   │   ├── platform.nix               # plataforma exclusiva del Dell
+│   │   ├── power.nix                  # perfil AC/batería exclusivo del Dell
+│   │   └── hardware-configuration.nix # autogenerado (NO tocar)
+│   └── nixos-pc/
+│       ├── default.nix                # identidad, solo compone
+│       ├── platform.nix               # plataforma AMD/NVIDIA del PC
 │       └── hardware-configuration.nix # autogenerado (NO tocar)
 └── modules/                           # "src/core" — lógica reutilizable
     ├── default.nix                    # "mod.rs" raíz — importa todos los módulos
@@ -63,7 +68,7 @@ responsabilidad única, componibles y declarativos**. Nada de monolitos.
 
 ## Comando custom: `rebuild`
 
-En lugar de escribir `sudo nixos-rebuild switch --flake .#loon-laptop` cada vez,
+En lugar de escribir `sudo nixos-rebuild switch --flake .#<hostname>` cada vez,
 este flake incluye un comando propio **`rebuild`** que lo hace por ti.
 
 ```bash
@@ -73,6 +78,8 @@ rebuild update   # actualiza nixpkgs y los flakes (flake update) y aplica
 ```
 
 - Se ejecuta desde cualquier directorio: internamente entra a `~/.nixos`.
+- Detecta el hostname actual y selecciona su `nixosConfiguration`; falla de
+  forma segura si el host no está declarado en el flake.
 - Pide sudo solo cuando aplica (switch/update).
 - El código vive en `pkgs/rebuild/default.nix`; la instalación se hace
   desde `modules/system/default.nix`.
@@ -563,6 +570,7 @@ imports = [
 ```nix
 nixosConfigurations = {
   "loon-laptop" = mkHost "loon-laptop" [ ];
+  "nixos-pc"    = mkHost "nixos-pc" [ ];
   desktop       = mkHost "desktop" [ ];
 };
 ```
@@ -600,6 +608,17 @@ nixosConfigurations = {
   hay dispositivos conectados. Al volver a AC se desbloquea y enciende.
 - **USB**: el receptor KYE `0458:019d` queda exceptuado de autosuspend para
   evitar lag. No existe una política USB global.
+- Estado: `26.05`.
+
+## Notas sobre el host (`hosts/nixos-pc/`)
+
+- Hostname: `nixos-pc` — ASRock B550 Pro4, Ryzen 7 5700X y GPU NVIDIA.
+- Arranque UEFI con systemd-boot; raíz ext4 y ESP vfat declaradas por UUID.
+- Microcode AMD y virtualización `kvm-amd` vienen de su hardware generado.
+- El primer despliegue usa `nouveau`; el driver NVIDIA propietario se habilita
+  en una migración posterior, después de confirmar el arranque gráfico estable.
+- No hereda el disco extra, `i915`, VA-API `iHD`, tapa ni perfil de energía de
+  `loon-laptop`.
 - Estado: `26.05`.
 
 ## Notas de seguridad

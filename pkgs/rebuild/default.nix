@@ -1,5 +1,5 @@
 # Comando custom `rebuild`: reconstruye la configuración de NixOS
-# del host loon-laptop usando el flake local (~/.nixos).
+# del host actual usando el flake local (~/.nixos).
 # Equivalente al "cargo build && cargo run" del proyecto.
 #
 # Uso:
@@ -13,9 +13,26 @@ let
     set -euo pipefail
 
     FLAKE_DIR="$HOME/.nixos"
-    HOST="loon-laptop"
+    HOST="''${NIXOS_HOST:-$(< /proc/sys/kernel/hostname)}"
 
     cd "$FLAKE_DIR"
+
+    case "$HOST" in
+      ""|*[!A-Za-z0-9_-]*)
+        echo "Hostname no válido para seleccionar el flake: '$HOST'" >&2
+        exit 1
+        ;;
+    esac
+
+    configured_host="$(${pkgs.nix}/bin/nix eval --raw \
+      "$FLAKE_DIR#nixosConfigurations.$HOST.config.networking.hostName" 2>/dev/null)" || {
+      echo "El flake no contiene nixosConfigurations.$HOST" >&2
+      exit 1
+    }
+    if [[ "$configured_host" != "$HOST" ]]; then
+      echo "La configuración '$HOST' declara el hostname '$configured_host'." >&2
+      exit 1
+    fi
 
     case "''${1:-switch}" in
       dry)

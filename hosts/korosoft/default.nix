@@ -5,6 +5,7 @@
 {
   imports = [
     ./hardware-configuration.nix
+    ../loon-laptop/platform.nix
   ];
 
   # Identidad del host (análogo al `[package] name` del Cargo.toml).

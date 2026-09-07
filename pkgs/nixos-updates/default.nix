@@ -169,6 +169,14 @@ if __name__ == "__main__":
     FLAKE_DIR="$HOME/.nixos"
     FLAKE_CACHE="$CACHE_DIR/flake"
     RESULT_LINK="$CACHE_DIR/result"
+    HOST="''${NIXOS_HOST:-$(< /proc/sys/kernel/hostname)}"
+
+    case "$HOST" in
+      ""|*[!A-Za-z0-9_-]*)
+        echo "Hostname no válido para seleccionar el flake: '$HOST'" >&2
+        exit 1
+        ;;
+    esac
 
     mkdir -p "$CACHE_DIR"
 
@@ -199,7 +207,16 @@ if __name__ == "__main__":
 
         echo -e "\033[35m󰒓\033[0m Evaluando nueva generación de NixOS..."
         rm -f "$RESULT_LINK"
-        if ! ${pkgs.nix}/bin/nix build "$FLAKE_CACHE#nixosConfigurations.loon-laptop.config.system.build.toplevel" --out-link "$RESULT_LINK" >/dev/null 2>&1; then
+        configured_host="$(${pkgs.nix}/bin/nix eval --raw \
+          "$FLAKE_CACHE#nixosConfigurations.$HOST.config.networking.hostName" 2>/dev/null)" || {
+          echo -e "\033[31m󰀦 El flake no contiene nixosConfigurations.$HOST.\033[0m" >&2
+          exit 1
+        }
+        if [ "$configured_host" != "$HOST" ]; then
+          echo -e "\033[31m󰀦 La configuración '$HOST' declara '$configured_host'.\033[0m" >&2
+          exit 1
+        fi
+        if ! ${pkgs.nix}/bin/nix build "$FLAKE_CACHE#nixosConfigurations.$HOST.config.system.build.toplevel" --out-link "$RESULT_LINK" >/dev/null 2>&1; then
           echo -e "\033[31m󰀦 Error al evaluar la nueva generación.\033[0m" >&2
           exit 1
         fi

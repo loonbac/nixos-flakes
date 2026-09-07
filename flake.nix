@@ -1,5 +1,5 @@
 {
-  description = "Configuración modular de NixOS para loon-laptop — loon-flakes";
+  description = "Configuración modular multi-host de NixOS — loon-flakes";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -119,6 +119,7 @@
 
       nixosConfigurations = {
         "loon-laptop" = mkHost "loon-laptop" [ ];
+        "nixos-pc" = mkHost "nixos-pc" [ ];
         "korosoft" = mkHost "korosoft" [ ];
       };
     };

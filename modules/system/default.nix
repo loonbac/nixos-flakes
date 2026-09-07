@@ -24,12 +24,8 @@ let
 in
 {
   imports = [
-    ./extras-disk.nix
     ./plymouth.nix
   ];
-  # ---- Bootloader (systemd-boot + UEFI) ----
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
 
   # ---- Zona horaria y localización ----
   time.timeZone = "America/Lima";
@@ -59,15 +55,6 @@ in
     "L+ /bin/tar - - - - ${pkgs.gnutar}/bin/tar"
     "L+ /usr/bin/tar - - - - ${pkgs.gnutar}/bin/tar"
   ];
-
-  # ---- Gestión de tapa y energía (Laptop) ----
-  # Al bajar la tapa suspende el equipo (hypridle bloquea la sesión antes de suspender)
-  services.logind.settings = {
-    Login = {
-      HandleLidSwitch = "suspend";
-      HandleLidSwitchExternalPower = "suspend";
-    };
-  };
 
   # ---- Keyring del sistema (requisito de Settings Sync de VS Code) ----
   # Sin un Secret Service (org.freedesktop.secrets) en el bus de sesión,

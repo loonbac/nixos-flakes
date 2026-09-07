@@ -13,8 +13,25 @@ let
     set -euo pipefail
 
     FLAKE_DIR="$HOME/.nixos"
-    HOST="loon-laptop"
+    HOST="''${NIXOS_HOST:-$(< /proc/sys/kernel/hostname)}"
     STATE_FILE="$FLAKE_DIR/modules/services/openssh/ssh-auth-mode"
+
+    case "$HOST" in
+      ""|*[!A-Za-z0-9_-]*)
+        echo "Hostname no válido para seleccionar el flake: '$HOST'" >&2
+        exit 1
+        ;;
+    esac
+
+    configured_host="$(${pkgs.nix}/bin/nix eval --raw \
+      "$FLAKE_DIR#nixosConfigurations.$HOST.config.networking.hostName" 2>/dev/null)" || {
+      echo "El flake no contiene nixosConfigurations.$HOST" >&2
+      exit 1
+    }
+    if [[ "$configured_host" != "$HOST" ]]; then
+      echo "La configuración '$HOST' declara el hostname '$configured_host'." >&2
+      exit 1
+    fi
 
     # Si no existe el archivo de estado, lo crea con el modo seguro (cert).
     if [[ ! -f "$STATE_FILE" ]]; then
@@ -23,7 +40,7 @@ let
     fi
 
     current="$(cat "$STATE_FILE" | tr -d '[:space:]')"
-    echo "Servidor SSH: loon-laptop ($HOST)"
+    echo "Servidor SSH: $HOST"
     echo "Modo actual:  $current"
     echo
 
