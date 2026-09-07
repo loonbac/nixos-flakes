@@ -55,7 +55,6 @@ in
 
   # Config gestionada por NixOS: niri la lee como fallback desde /etc/niri.
   environment.etc."niri/config.kdl".source = ./config.kdl;
-  environment.etc."niri/accent-default.kdl".source = defaultAccent;
 
   system.extraDependencies = [ niriConfigCheck ];
 
@@ -71,6 +70,6 @@ in
     # Acento dinámico: lo escribe accent-wallpaper. `C` copia el default
     # solamente si el destino no existe y permite usar un archivo multilínea
     # sin introducir líneas inválidas en la configuración de tmpfiles.
-    "C /home/loonbac/.config/niri/accent.kdl 0644 loonbac users - /etc/niri/accent-default.kdl"
+    "C /home/loonbac/.config/niri/accent.kdl 0644 loonbac users - ${defaultAccent}"
   ];
 }
