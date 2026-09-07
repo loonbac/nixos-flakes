@@ -227,7 +227,7 @@ pkgs.writeShellScriptBin "accent-wallpaper" ''
   FFMPEG="${pkgs.ffmpeg}/bin/ffmpeg"
   MAGICK="${pkgs.imagemagick}/bin/magick"
   PYTHON="${pkgs.python3}/bin/python3"
-  WAYBAR="${pkgs.waybar}/bin/waybar"
+  SYSTEMCTL="${pkgs.systemd}/bin/systemctl"
   SWAYNC_CLIENT="${pkgs.swaynotificationcenter}/bin/swaync-client"
 
   pick_target() {
@@ -292,11 +292,10 @@ pkgs.writeShellScriptBin "accent-wallpaper" ''
   "$PYTHON" "${paletteExtractor}" "$FRAME" "$MAGICK"
 
   # ---- Propagación en vivo ----
-  # Reiniciar waybar para aplicar nueva paleta de inmediato
-  if pgrep -x waybar >/dev/null 2>&1; then
-    pkill -x waybar || true
-    sleep 0.2
-    setsid "$WAYBAR" >/dev/null 2>&1 &
+  # Reiniciar la unidad supervisada para aplicar la nueva paleta sin crear
+  # procesos huérfanos ni depender del nombre interno del wrapper de Nix.
+  if "$SYSTEMCTL" --user is-active --quiet waybar.service; then
+    "$SYSTEMCTL" --user restart waybar.service
   fi
 
   # Recargar notificaciones SwayNC

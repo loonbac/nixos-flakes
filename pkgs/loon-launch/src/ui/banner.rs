@@ -1,4 +1,4 @@
-// Banner del launcher: imagen de fondo fija + entry de búsqueda.
+// Banner del launcher: imagen de fondo opcional + entry de búsqueda.
 use gtk4::prelude::*;
 
 use crate::models::{BANNER_H, WIN_W};
@@ -20,14 +20,34 @@ pub fn build_banner() -> BannerRefs {
     banner_viewport.set_content_height(BANNER_H);
     banner_viewport.set_size_request(WIN_W, BANNER_H);
 
-    let banner_pixbuf = gtk4::gdk_pixbuf::Pixbuf::from_file(
+    // La imagen existe en la máquina original, pero no forma parte del flake.
+    // En un home nuevo usamos un fondo integrado en vez de abortar toda la app.
+    match gtk4::gdk_pixbuf::Pixbuf::from_file(
         "/home/loonbac/Descargas/cl_aesthetic_mix58.jpg",
-    )
-    .expect("failed to load launcher banner image");
-    banner_viewport.set_draw_func(move |_, cr, _, _| {
-        cr.set_source_pixbuf(&banner_pixbuf, -300.0, -123.5);
-        let _ = cr.paint();
-    });
+    ) {
+        Ok(banner_pixbuf) => {
+            banner_viewport.set_draw_func(move |_, cr, _, _| {
+                cr.set_source_pixbuf(&banner_pixbuf, -300.0, -123.5);
+                let _ = cr.paint();
+            });
+        }
+        Err(error) => {
+            eprintln!("loon-launch: banner image unavailable ({error}); using built-in gradient");
+            banner_viewport.set_draw_func(move |_, cr, width, height| {
+                let gradient = gtk4::cairo::LinearGradient::new(
+                    0.0,
+                    0.0,
+                    width as f64,
+                    height as f64,
+                );
+                gradient.add_color_stop_rgb(0.0, 0.12, 0.03, 0.24);
+                gradient.add_color_stop_rgb(0.5, 0.42, 0.10, 0.58);
+                gradient.add_color_stop_rgb(1.0, 0.08, 0.02, 0.18);
+                let _ = cr.set_source(&gradient);
+                let _ = cr.paint();
+            });
+        }
+    }
     banner.set_child(Some(&banner_viewport));
 
     let entry = gtk4::Entry::new();

@@ -23,17 +23,16 @@ niri=$(bin niri)
 screen_brightness=$(bin screen-brightness)
 mpvpaper_wallpaper=$(bin mpvpaper-wallpaper)
 niri_backdrop=$(bin niri-backdrop)
-waybar=$(bin waybar)
-swaync=$(bin swaync)
-udiskie=$(bin udiskie)
-wl_clip_persist=$(bin wl-clip-persist)
-wl_paste=$(bin wl-paste)
-cliphist=$(bin cliphist)
-loon_launch=$(bin loon-launch)
 moonlight=$(bin moonlight)
 pgrep_cmd=$(bin pgrep)
-pkill_cmd=$(bin pkill)
 setsid_cmd=$(bin setsid)
+waybar_unit=waybar.service
+swaync_unit=swaync.service
+udiskie_unit=udiskie.service
+clip_persist_unit=wl-clip-persist.service
+clip_text_unit=cliphist-text.service
+clip_image_unit=cliphist-image.service
+loon_launch_unit=loon-launch.service
 
 err() { echo "moonlight-power: $*" >&2; return 1; }
 token() { case "${1:-}" in ""|*[!A-Za-z0-9._-]*) return 1;; *) return 0;; esac; }
@@ -85,14 +84,9 @@ bool() {
   if "$command" "$@"; then printf true; else printf false; fi
 }
 running() { "$pgrep_cmd" -f "$1" >/dev/null 2>&1; }
-stop_match() {
-  # pgrep/pkill use 1 for a harmless "no matching process" and >=2 for a
-  # real error.  Preserve the latter so partial failure is recoverable.
-  local rc
-  "$pkill_cmd" -f "$1" >/dev/null 2>&1
-  rc=$?
-  [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]
-}
+unit_active() { "$systemctl" --user is-active --quiet "$1" >/dev/null 2>&1; }
+stop_unit() { "$systemctl" --user stop "$1" >/dev/null 2>&1; }
+start_unit() { "$systemctl" --user start "$1" >/dev/null 2>&1; }
 start_if_absent() {
   local pattern=$1
   shift
@@ -140,13 +134,13 @@ snapshot() {
   boot=$(boot_id) || { err "cannot read boot ID"; return 1; }
   animated=$(bool running '[b]in/mpvpaper ')
   static=$(bool running 'awww-daemon.*--namespace wallpaper')
-  bar=$(bool running '(^|/)waybar$')
-  notifications=$(bool running '(^|/)swaync$')
-  disks=$(bool running '(^|/)(\.udiskie-wrapped|udiskie) --automount --notify$')
-  persist=$(bool running 'wl-clip-persist --clipboard both$')
-  text=$(bool running 'wl-paste --type text --watch cliphist store$')
-  image=$(bool running 'wl-paste --type image --watch cliphist store$')
-  launcher=$(bool running '(^|/)loon-launch$')
+  bar=$(bool unit_active "$waybar_unit")
+  notifications=$(bool unit_active "$swaync_unit")
+  disks=$(bool unit_active "$udiskie_unit")
+  persist=$(bool unit_active "$clip_persist_unit")
+  text=$(bool unit_active "$clip_text_unit")
+  image=$(bool unit_active "$clip_image_unit")
+  launcher=$(bool unit_active "$loon_launch_unit")
   if "$systemctl" --user is-active --quiet nixos-updates-check.timer >/dev/null 2>&1; then timer=true; else timer=false; fi
   jq -cn --arg boot_id "$boot" --arg output "$output" --arg mode "$original" --argjson brightness "$brightness" \
     --argjson animated "$animated" --argjson static "$static" --argjson bar "$bar" --argjson notifications "$notifications" \
@@ -168,13 +162,13 @@ apply_values() {
   set_brightness_checked "$target" || failed=1
   "$mpvpaper_wallpaper" stop >/dev/null 2>&1 || failed=1
   "$niri_backdrop" stop >/dev/null 2>&1 || failed=1
-  stop_match '(^|/)waybar$' || failed=1
-  stop_match '(^|/)swaync$' || failed=1
-  stop_match '(^|/)(\.udiskie-wrapped|udiskie) --automount --notify$' || failed=1
-  stop_match 'wl-clip-persist --clipboard both$' || failed=1
-  stop_match 'wl-paste --type text --watch cliphist store$' || failed=1
-  stop_match 'wl-paste --type image --watch cliphist store$' || failed=1
-  stop_match '(^|/)loon-launch$' || failed=1
+  stop_unit "$waybar_unit" || failed=1
+  stop_unit "$swaync_unit" || failed=1
+  stop_unit "$udiskie_unit" || failed=1
+  stop_unit "$clip_persist_unit" || failed=1
+  stop_unit "$clip_text_unit" || failed=1
+  stop_unit "$clip_image_unit" || failed=1
+  stop_unit "$loon_launch_unit" || failed=1
   [ "$(state_bool .timer_active)" = true ] && "$systemctl" --user stop nixos-updates-check.timer >/dev/null 2>&1 || true
   [ "$failed" -eq 0 ]
 }
@@ -189,13 +183,13 @@ restore_values() {
   set_brightness_checked "$brightness" || failed=1
   if [ "$(state_bool .processes.animated_wallpaper)" = true ]; then start_if_absent '[b]in/mpvpaper ' "$mpvpaper_wallpaper" || failed=1; fi
   if [ "$(state_bool .processes.static_wallpaper)" = true ]; then start_if_absent 'awww-daemon.*--namespace wallpaper' "$niri_backdrop" || failed=1; fi
-  if [ "$(state_bool .processes.waybar)" = true ]; then start_if_absent '(^|/)waybar$' "$waybar" || failed=1; fi
-  if [ "$(state_bool .processes.swaync)" = true ]; then start_if_absent '(^|/)swaync$' "$swaync" || failed=1; fi
-  if [ "$(state_bool .processes.udiskie)" = true ]; then start_if_absent '(^|/)(\.udiskie-wrapped|udiskie) --automount --notify$' "$udiskie" --automount --notify || failed=1; fi
-  if [ "$(state_bool .processes.clip_persist)" = true ]; then start_if_absent 'wl-clip-persist --clipboard both$' "$wl_clip_persist" --clipboard both || failed=1; fi
-  if [ "$(state_bool .processes.wl_paste_text)" = true ]; then start_if_absent 'wl-paste --type text --watch cliphist store$' "$wl_paste" --type text --watch "$cliphist" store || failed=1; fi
-  if [ "$(state_bool .processes.wl_paste_image)" = true ]; then start_if_absent 'wl-paste --type image --watch cliphist store$' "$wl_paste" --type image --watch "$cliphist" store || failed=1; fi
-  if [ "$(state_bool .processes.loon_launch)" = true ]; then start_if_absent '(^|/)loon-launch$' "$loon_launch" || failed=1; fi
+  if [ "$(state_bool .processes.waybar)" = true ]; then start_unit "$waybar_unit" || failed=1; fi
+  if [ "$(state_bool .processes.swaync)" = true ]; then start_unit "$swaync_unit" || failed=1; fi
+  if [ "$(state_bool .processes.udiskie)" = true ]; then start_unit "$udiskie_unit" || failed=1; fi
+  if [ "$(state_bool .processes.clip_persist)" = true ]; then start_unit "$clip_persist_unit" || failed=1; fi
+  if [ "$(state_bool .processes.wl_paste_text)" = true ]; then start_unit "$clip_text_unit" || failed=1; fi
+  if [ "$(state_bool .processes.wl_paste_image)" = true ]; then start_unit "$clip_image_unit" || failed=1; fi
+  if [ "$(state_bool .processes.loon_launch)" = true ]; then start_unit "$loon_launch_unit" || failed=1; fi
   if [ "$(state_bool .timer_active)" = true ]; then
     "$systemctl" --user start nixos-updates-check.timer >/dev/null 2>&1 || failed=1
   fi

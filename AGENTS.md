@@ -132,6 +132,10 @@ y `cert` (solo claves), leído de `modules/services/openssh/ssh-auth-mode`.
 - **Bind**: `Super+Space` en `modules/wayland/niri/config.kdl`.
 - **Regla de ventana** (flotante centrado, no maximizada): window-rule de
   loon-launch en el config.kdl, **después** de la regla genérica.
+- **Instalación limpia**: ningún recurso imprescindible puede depender de
+  rutas privadas del home. El banner opcional usa un degradado integrado si
+  `~/Descargas/cl_aesthetic_mix58.jpg` no existe; nunca volver a usar `expect`
+  al cargar un recurso externo de presentación.
 
 ### Editar la config de niri
 
@@ -200,6 +204,10 @@ y `cert` (solo claves), leído de `modules/services/openssh/ssh-auth-mode`.
 - **Niri desde cero**: el build incluye `niri-config-check`, que valida
   `config.kdl` con un HOME vacío y un `accent.kdl` mínimo. Tras aplicar, probar
   también `niri validate --config /etc/niri/config.kdl` en el host destino.
+- **Procesos de sesión**: Waybar, SwayNC, loon-launch, Hypridle, udiskie y los
+  watchers del portapapeles viven en `modules/wayland/niri/session-services.nix`.
+  No volver a duplicarlos con `spawn-at-startup`; comprobarlos con
+  `systemctl --user status loon-niri-session.target`.
 - **scp**: no expande `~` en el destino → usar rutas completas
   (`loonbac@192.168.0.2:/home/loonbac/.nixos/...`).
 - **niri KDL**: los booleanos se escriben `prop true` (no `prop=true`); los

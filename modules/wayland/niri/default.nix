@@ -33,6 +33,8 @@ let
 in
 
 {
+  imports = [ ./session-services.nix ];
+
   programs.niri = {
     enable = true;
     # Parcheamos niri-session envolviendo el paquete con symlinkJoin para no recompilar niri desde código fuente.

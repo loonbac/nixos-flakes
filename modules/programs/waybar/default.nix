@@ -6,9 +6,7 @@
 
 let
   restartWaybar = pkgs.writeShellScriptBin "omarchy-restart-waybar" ''
-    pkill -x waybar || true
-    sleep 0.2
-    setsid ${pkgs.waybar}/bin/waybar >/dev/null 2>&1 &
+    ${pkgs.systemd}/bin/systemctl --user restart waybar.service
   '';
 in
 {

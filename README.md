@@ -87,6 +87,10 @@ rebuild update   # actualiza nixpkgs y los flakes (flake update) y aplica
 La generación del sistema ejecuta además `niri validate` contra un HOME limpio.
 Los directorios y archivos incluidos por Niri se crean declarativamente con
 tmpfiles, de modo que una instalación nueva no depende de estado previo del usuario.
+El launcher tampoco requiere archivos privados del home: si la imagen opcional
+del banner no está disponible, utiliza un degradado integrado.
+Waybar, loon-launch y los daemons persistentes de Niri son servicios de usuario
+supervisados: se inician y detienen con la sesión y se recuperan de un fallo.
 
 > **Nota**: `rebuild update` también actualiza el `flake.lock`, lo que trae
 > las últimas versiones de Zen Browser y VS Code Insiders (ver abajo).
