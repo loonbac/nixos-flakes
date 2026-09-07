@@ -191,6 +191,15 @@ y `cert` (solo claves), leído de `modules/services/openssh/ssh-auth-mode`.
 - **tmpfiles**: `L+` NO reemplaza un archivo regular existente (solo actúa si
   no existe o ya es symlink). Usar **ruta absoluta** (`/home/loonbac/...`),
   systemd no expande `~` en tmpfiles.
+- **Home nuevo + tmpfiles**: antes de cualquier regla `L+` o `f` bajo el home,
+  declarar el directorio padre con `d ... 0755 loonbac users -`. No depender
+  de que una aplicación o una sesión previa haya creado `~/.config/*`.
+- **Contenido multilínea + tmpfiles**: no insertar saltos de línea en una
+  regla raw. Declarar el default en `/etc` y copiarlo solo si falta con `C`;
+  una aserción global rechaza reglas multilínea durante la evaluación.
+- **Niri desde cero**: el build incluye `niri-config-check`, que valida
+  `config.kdl` con un HOME vacío y un `accent.kdl` mínimo. Tras aplicar, probar
+  también `niri validate --config /etc/niri/config.kdl` en el host destino.
 - **scp**: no expande `~` en el destino → usar rutas completas
   (`loonbac@192.168.0.2:/home/loonbac/.nixos/...`).
 - **niri KDL**: los booleanos se escriben `prop true` (no `prop=true`); los

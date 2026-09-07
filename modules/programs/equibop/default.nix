@@ -54,6 +54,7 @@ in
 
   # Ruta absoluta: systemd no expande "~" en tmpfiles.
   systemd.tmpfiles.rules = [
+    "d /home/loonbac/.config/autostart 0755 loonbac users -"
     "L+ /home/loonbac/.config/autostart/equibop.desktop - - - - /etc/equibop/autostart.desktop"
   ];
 }

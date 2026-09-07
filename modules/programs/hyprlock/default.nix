@@ -5,6 +5,21 @@
 # - Las configuraciones se instalan en /etc/hypr y se enlazan mediante tmpfiles a ~/.config/hypr/*.
 { config, lib, pkgs, ... }:
 
+let
+  defaultColors = pkgs.writeText "hypr-default-colors.conf" ''
+    $accent = rgb(5e81ac)
+    $accent_alpha = rgba(5e81acff)
+    $on_accent = rgb(ffffff)
+    $background = rgb(1e1e2e)
+    $surface = rgb(2e3440)
+    $surface_alpha = rgba(2e3440cc)
+    $foreground = rgb(eceff4)
+    $highlight = rgb(88c0d0)
+    $muted = rgb(d8dee9)
+    $warning = rgb(ebcb8b)
+    $critical = rgb(bf616a)
+  '';
+in
 {
   # Habilita el módulo de hyprlock en NixOS (configura el servicio PAM necesario para la autenticación)
   programs.hyprlock.enable = true;
@@ -17,13 +32,15 @@
   # Configuración versionada gestionada por NixOS
   environment.etc."hypr/hyprlock.conf".source = ./hyprlock.conf;
   environment.etc."hypr/hypridle.conf".source = ./hypridle.conf;
+  environment.etc."hypr/colors-default.conf".source = defaultColors;
 
   # Enlaces simbólicos en el home del usuario
   systemd.tmpfiles.rules = [
     "d /home/loonbac/.config/hypr 0755 loonbac users -"
     "L+ /home/loonbac/.config/hypr/hyprlock.conf - - - - /etc/hypr/hyprlock.conf"
     "L+ /home/loonbac/.config/hypr/hypridle.conf - - - - /etc/hypr/hypridle.conf"
-    # Acento dinámico: lo escribe accent-wallpaper; este default evita que el source falle en el primer boot.
-    "f /home/loonbac/.config/hypr/colors.conf 0644 loonbac users - $accent = rgb(5e81ac)\n$accent_alpha = rgba(5e81acff)\n$on_accent = rgb(ffffff)\n$background = rgb(1e1e2e)\n$surface = rgb(2e3440)\n$surface_alpha = rgba(2e3440cc)\n$foreground = rgb(eceff4)\n$highlight = rgb(88c0d0)\n$muted = rgb(d8dee9)\n$warning = rgb(ebcb8b)\n$critical = rgb(bf616a)\n"
+    # Acento dinámico: lo escribe accent-wallpaper; `C` instala el default
+    # multilínea solo cuando el archivo todavía no existe.
+    "C /home/loonbac/.config/hypr/colors.conf 0644 loonbac users - /etc/hypr/colors-default.conf"
   ];
 }

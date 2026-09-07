@@ -8,6 +8,30 @@
 # Edita el archivo config.kdl de este repo y corre `rebuild`.
 { config, lib, pkgs, ... }:
 
+let
+  defaultAccent = pkgs.writeText "niri-default-accent.kdl" ''
+    layout {
+        border {
+            active-color "#5e81ac"
+        }
+    }
+  '';
+
+  # Convierte `niri validate` en una dependencia del sistema. La prueba usa
+  # un HOME vacío y crea únicamente el archivo dinámico que tmpfiles garantiza,
+  # por lo que detecta tanto errores KDL como includes ausentes en instalaciones
+  # nuevas antes de que se pueda activar una generación rota.
+  niriConfigCheck = pkgs.runCommand "niri-config-check" {
+    nativeBuildInputs = [ pkgs.niri ];
+  } ''
+    export HOME="$TMPDIR/home"
+    mkdir -p "$HOME/.config/niri"
+    cp ${defaultAccent} "$HOME/.config/niri/accent.kdl"
+    niri validate --config ${./config.kdl}
+    touch "$out"
+  '';
+in
+
 {
   programs.niri = {
     enable = true;
@@ -31,17 +55,22 @@
 
   # Config gestionada por NixOS: niri la lee como fallback desde /etc/niri.
   environment.etc."niri/config.kdl".source = ./config.kdl;
+  environment.etc."niri/accent-default.kdl".source = defaultAccent;
+
+  system.extraDependencies = [ niriConfigCheck ];
 
   # Fuerza que la config del home sea un symlink a la gestionada,
   # reemplazando el default que niri genera en el primer arranque.
   # Ruta absoluta: systemd no expande "~" en tmpfiles.
   systemd.tmpfiles.rules = [
+    # En un home recién creado no existe ~/.config/niri. Debe declararse antes
+    # de crear los archivos; confiar en que una sesión anterior lo haya creado
+    # hacía que `niri validate` fallara en instalaciones limpias.
+    "d /home/loonbac/.config/niri 0755 loonbac users -"
     "L+ /home/loonbac/.config/niri/config.kdl - - - - /etc/niri/config.kdl"
-    # Acento dinámico: lo escribe accent-wallpaper; este default (f = crea
-    # si no existe, no pisa) evita que el include falle en el primer boot.
-    "f /home/loonbac/.config/niri/accent.kdl 0644 loonbac users - layout {\n    border {\n        active-color \"#5e81ac\"\n    }\n}\n"
-    # Fondo animado (mpvpaper): el video vive en ~/Videos/Wallpapers.
-    "d /home/loonbac/Videos 0755 loonbac users -"
-    "d /home/loonbac/Videos/Wallpapers 0755 loonbac users -"
+    # Acento dinámico: lo escribe accent-wallpaper. `C` copia el default
+    # solamente si el destino no existe y permite usar un archivo multilínea
+    # sin introducir líneas inválidas en la configuración de tmpfiles.
+    "C /home/loonbac/.config/niri/accent.kdl 0644 loonbac users - /etc/niri/accent-default.kdl"
   ];
 }

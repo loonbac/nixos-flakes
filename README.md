@@ -84,6 +84,10 @@ rebuild update   # actualiza nixpkgs y los flakes (flake update) y aplica
 - El código vive en `pkgs/rebuild/default.nix`; la instalación se hace
   desde `modules/system/default.nix`.
 
+La generación del sistema ejecuta además `niri validate` contra un HOME limpio.
+Los directorios y archivos incluidos por Niri se crean declarativamente con
+tmpfiles, de modo que una instalación nueva no depende de estado previo del usuario.
+
 > **Nota**: `rebuild update` también actualiza el `flake.lock`, lo que trae
 > las últimas versiones de Zen Browser y VS Code Insiders (ver abajo).
 

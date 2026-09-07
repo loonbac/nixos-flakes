@@ -100,6 +100,7 @@ in
   # Instalar el .desktop en el home (ruta absoluta: systemd no expande ~).
   # `r` borra restos de TikTok normal (symlink gestionado + el que genera Waydroid).
   systemd.tmpfiles.rules = [
+    "d /home/loonbac/.local/share/applications 0755 loonbac users -"
     "r /home/loonbac/.local/share/applications/tiktok.desktop"
     "r /home/loonbac/.local/share/applications/waydroid.com.zhiliaoapp.musically.desktop"
     "L+ /home/loonbac/.local/share/applications/tiktok-lite.desktop - - - - /etc/waydroid/tiktok-lite.desktop"

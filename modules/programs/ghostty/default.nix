@@ -14,6 +14,7 @@
   # Fuerza que la config y los shaders del home sean symlinks a los gestionados.
   # Ruta absoluta: systemd no expande "~" en tmpfiles.
   systemd.tmpfiles.rules = [
+    "d /home/loonbac/.config/ghostty 0755 loonbac users -"
     "L+ /home/loonbac/.config/ghostty/config - - - - /etc/ghostty/config"
     "d /home/loonbac/.config/ghostty/shaders 0755 loonbac users -"
     "L+ /home/loonbac/.config/ghostty/shaders/smooth_cursor.glsl - - - - /etc/ghostty/shaders/smooth_cursor.glsl"

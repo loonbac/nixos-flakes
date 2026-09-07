@@ -18,6 +18,15 @@
   # inmutable y no se puede escribir). El PATH se gestiona en system/fish para
   # que los wrappers declarativos de NixOS tengan prioridad.
   systemd.tmpfiles.rules = [
+    # Esqueleto mínimo de un home nuevo. Los módulos de aplicaciones declaran
+    # sus subdirectorios concretos; estas bases evitan padres creados como root.
+    "d /home/loonbac/.config 0755 loonbac users -"
+    "d /home/loonbac/.local 0755 loonbac users -"
+    "d /home/loonbac/.local/share 0755 loonbac users -"
+    "d /home/loonbac/Pictures 0755 loonbac users -"
+    "d /home/loonbac/Pictures/Wallpaper 0755 loonbac users -"
+    "d /home/loonbac/Videos 0755 loonbac users -"
+    "d /home/loonbac/Videos/Wallpapers 0755 loonbac users -"
     "d /home/loonbac/.npm-global 0755 loonbac users -"
     "d /home/loonbac/.npm-global/lib 0755 loonbac users -"
     "d /home/loonbac/.npm-global/bin 0755 loonbac users -"
