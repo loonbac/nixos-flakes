@@ -34,7 +34,7 @@ def rgb_to_hex(r, g, b):
     return '#{:02X}{:02X}{:02X}'.format(
         max(0, min(255, int(round(r * 255)))),
         max(0, min(255, int(round(g * 255)))),
-        max(0, min(255, int(round(g * 255))))
+        max(0, min(255, int(round(b * 255))))
     )
 
 def get_luma(r, g, b):

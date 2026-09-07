@@ -1,4 +1,6 @@
 {
+  "currentThemeName": "dynamic",
+  "currentThemeCategory": "dynamic",
   "use24HourClock": false,
   "greeterWallpaperPath": "/var/lib/dms-greeter/greeter_wallpaper_override.jpg"
 }

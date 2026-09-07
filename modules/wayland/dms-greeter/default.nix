@@ -5,6 +5,54 @@
 # Config fina del tema en: ~/.config/DankMaterialShell/settings.json
 { config, lib, pkgs, ... }:
 
+let
+  greeterColorsTemplate = pkgs.writeText "dms-greeter-colors.json" ''
+    {
+      "colors": {
+        "dark": {
+          "primary": "{{colors.primary.dark.hex}}",
+          "on_primary": "{{colors.on_primary.dark.hex}}",
+          "primary_container": "{{colors.primary_container.dark.hex}}",
+          "secondary": "{{colors.secondary.dark.hex}}",
+          "surface": "{{colors.surface.dark.hex}}",
+          "on_background": "{{colors.on_background.dark.hex}}",
+          "surface_variant": "{{colors.surface_variant.dark.hex}}",
+          "on_surface_variant": "{{colors.on_surface_variant.dark.hex}}",
+          "surface_tint": "{{colors.surface_tint.dark.hex}}",
+          "background": "{{colors.background.dark.hex}}",
+          "outline": "{{colors.outline.dark.hex}}",
+          "surface_container": "{{colors.surface_container.dark.hex}}",
+          "surface_container_high": "{{colors.surface_container_high.dark.hex}}",
+          "surface_container_highest": "{{colors.surface_container_highest.dark.hex}}"
+        },
+        "light": {
+          "primary": "{{colors.primary.light.hex}}",
+          "on_primary": "{{colors.on_primary.light.hex}}",
+          "primary_container": "{{colors.primary_container.light.hex}}",
+          "secondary": "{{colors.secondary.light.hex}}",
+          "surface": "{{colors.surface.light.hex}}",
+          "on_background": "{{colors.on_background.light.hex}}",
+          "surface_variant": "{{colors.surface_variant.light.hex}}",
+          "on_surface_variant": "{{colors.on_surface_variant.light.hex}}",
+          "surface_tint": "{{colors.surface_tint.light.hex}}",
+          "background": "{{colors.background.light.hex}}",
+          "outline": "{{colors.outline.light.hex}}",
+          "surface_container": "{{colors.surface_container.light.hex}}",
+          "surface_container_high": "{{colors.surface_container_high.light.hex}}",
+          "surface_container_highest": "{{colors.surface_container_highest.light.hex}}"
+        }
+      }
+    }
+  '';
+
+  greeterMatugenConfig = pkgs.writeText "dms-greeter-matugen.toml" ''
+    [config]
+
+    [templates.dms-greeter]
+    input_path = '${greeterColorsTemplate}'
+    output_path = '/var/lib/dms-greeter/colors.json'
+  '';
+in
 {
   services.displayManager.dms-greeter = {
     enable = true;
@@ -74,11 +122,13 @@ EOF
   systemd.services.publish-greeter-wallpaper = {
     description = "Publica el wallpaper del backdrop en el greeter";
     wantedBy = [ "multi-user.target" ];
+    requiredBy = [ "greetd.service" ];
+    before = [ "greetd.service" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
     };
-    path = [ pkgs.coreutils pkgs.imagemagick ];
+    path = [ pkgs.coreutils pkgs.imagemagick pkgs.matugen ];
     script = ''
       mkdir -p /var/lib/dms-greeter
       state="/home/loonbac/.config/mpvpaper/backdrop.txt"
@@ -88,11 +138,15 @@ EOF
         [ -f "/home/loonbac/Pictures/Wallpaper/$name" ] && wallpaper="/home/loonbac/Pictures/Wallpaper/$name"
       fi
       [ -z "$wallpaper" ] && wallpaper="$(ls /home/loonbac/Pictures/Wallpaper/*.{png,jpg,jpeg,webp} 2>/dev/null | head -n1)"
-      if [ -n "$wallpaper" ]; then
-        magick "$wallpaper" -resize "1920x1080^" -gravity center -extent 1920x1080 \
-          -quality 85 /var/lib/dms-greeter/greeter_wallpaper_override.jpg
-        chmod 644 /var/lib/dms-greeter/greeter_wallpaper_override.jpg
-      fi
+      [ -n "$wallpaper" ] || {
+        echo "No hay wallpaper estático para generar los colores del greeter" >&2
+        exit 1
+      }
+      magick "$wallpaper" -resize "1920x1080^" -gravity center -extent 1920x1080 \
+        -quality 85 /var/lib/dms-greeter/greeter_wallpaper_override.jpg
+      chmod 644 /var/lib/dms-greeter/greeter_wallpaper_override.jpg
+      matugen image "$wallpaper" --config ${greeterMatugenConfig} \
+        --source-color-index 0 --quiet
     '';
   };
 }

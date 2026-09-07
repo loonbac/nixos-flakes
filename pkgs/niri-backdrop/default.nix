@@ -25,12 +25,14 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
   set -euo pipefail
 
   DIR="${wallpapersDir}"
+  VIDEO_DIR="$HOME/Videos/Wallpapers"
   STATE="${stateFile}"
   AWWW="${pkgs.awww}/bin/awww"
   AWWW_DAEMON="${pkgs.awww}/bin/awww-daemon"
   FUZZEL="${pkgs.fuzzel}/bin/fuzzel"
   ACCENT_WALLPAPER="${accent-wallpaper}/bin/accent-wallpaper"
   IMG=""
+  GENERATE_ACCENT=false
 
   # Imagen actual seteada (del state) o la primera disponible.
   pick_image() {
@@ -40,6 +42,12 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
   # Lista de imágenes disponibles (nombres, ordenadas).
   list_images() {
     find "$DIR" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) -printf '%f\n' | sort
+  }
+
+  # Al iniciar, mpvpaper es el único escritor de la paleta si hay video.
+  # Las selecciones explícitas de imagen sí cambian el acento inmediatamente.
+  has_video() {
+    find "$VIDEO_DIR" -maxdepth 1 -type f \( -iname '*.mp4' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.mov' -o -iname '*.gif' \) -print -quit 2>/dev/null | grep -q .
   }
 
   # Levanta el daemon de awww con namespace "wallpaper" si no está corriendo.
@@ -59,10 +67,11 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
     ensure_daemon
     "$AWWW" img --namespace wallpaper --transition-type fade --transition-duration 1.5 \
       --resize fit "$IMG" >/dev/null 2>&1 || true
-    # Mantener la paleta compartida (incluido Pi) sincronizada con el backdrop.
-    # Se desacopla para no retrasar la transición de awww mientras ImageMagick
-    # analiza la imagen.
-    setsid "$ACCENT_WALLPAPER" from "$IMG" >/dev/null 2>&1 &
+    if [ "$GENERATE_ACCENT" = true ]; then
+      # Se desacopla para no retrasar la transición de awww mientras
+      # ImageMagick analiza la imagen.
+      setsid "$ACCENT_WALLPAPER" from "$IMG" >/dev/null 2>&1 &
+    fi
   }
 
   stop_backdrop() {
@@ -81,6 +90,7 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
       mkdir -p "$(dirname "$STATE")"
       echo "$NAME" > "$STATE"
       IMG="$DIR/$NAME"
+      GENERATE_ACCENT=true
       ;;
     next)
       CURRENT="$(cat "$STATE" 2>/dev/null || true)"
@@ -89,6 +99,7 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
       mkdir -p "$(dirname "$STATE")"
       echo "$NAME" > "$STATE"
       IMG="$DIR/$NAME"
+      GENERATE_ACCENT=true
       ;;
     set)
       NAME="''${2:-}"
@@ -97,6 +108,7 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
       mkdir -p "$(dirname "$STATE")"
       echo "$NAME" > "$STATE"
       IMG="$DIR/$NAME"
+      GENERATE_ACCENT=true
       ;;
     *)
       if [ -f "$STATE" ]; then
@@ -105,6 +117,7 @@ pkgs.writeShellScriptBin "niri-backdrop" ''
       else
         IMG="$(pick_image)"
       fi
+      has_video || GENERATE_ACCENT=true
       ;;
   esac
 

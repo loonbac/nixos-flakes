@@ -27,6 +27,32 @@ moonlight_active() {
   moonlight_active_file "$moonlight_root_state" || moonlight_active_file "$moonlight_user_state"
 }
 outputs_json() { niri msg -j outputs 2>/dev/null; }
+wait_for_edp() {
+  local _
+  for _ in $(seq 1 30); do
+    if outputs_json | jq -e 'has("eDP-1")' >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  err "eDP-1 no estuvo disponible antes de vencer la espera"
+  return 1
+}
+wait_for_wallpaper() {
+  local _ wallpaper
+  for _ in $(seq 1 30); do
+    wallpaper=$(mpvpaper-wallpaper status 2>/dev/null)
+    case "$wallpaper" in
+      playing|paused)
+        printf '%s\n' "$wallpaper"
+        return 0
+        ;;
+    esac
+    sleep 0.2
+  done
+  err "mpvpaper sigue stopped o unavailable; se omite el cambio de pausa"
+  return 1
+}
 target_mode() {
   local minimum=$1 maximum=$2
   outputs_json | jq -r --argjson minimum "$minimum" --argjson maximum "$maximum" '
@@ -47,8 +73,7 @@ current_mode() {
 }
 set_display_mode() {
   local minimum=$1 maximum=$2 target actual
-  if ! outputs_json | jq -e 'has("eDP-1")' >/dev/null 2>&1; then
-    err "eDP-1 no está disponible; las salidas quedan sin cambios"
+  if ! wait_for_edp; then
     return 0
   fi
   target=$(target_mode "$minimum" "$maximum")
@@ -73,12 +98,12 @@ apply_profile() {
   fi
   if on_ac; then
     set_display_mode 119000 121000
-    wallpaper=$(mpvpaper-wallpaper status 2>/dev/null)
+    wallpaper=$(wait_for_wallpaper) || wallpaper=""
     [ "$wallpaper" = paused ] && mpvpaper-wallpaper resume >/dev/null 2>&1 || true
     echo ac-rendimiento
   else
     set_display_mode 59000 61000
-    wallpaper=$(mpvpaper-wallpaper status 2>/dev/null)
+    wallpaper=$(wait_for_wallpaper) || wallpaper=""
     [ "$wallpaper" = playing ] && mpvpaper-wallpaper pause >/dev/null 2>&1 || true
     echo bateria-ahorro
   fi

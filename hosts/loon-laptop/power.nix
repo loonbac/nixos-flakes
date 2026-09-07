@@ -13,7 +13,9 @@ let
       # La sesión niri importa NIRI_SOCKET al gestor systemd del usuario.
       # Que aún no exista sesión gráfica durante el arranque es normal y no
       # debe hacer fallar el perfil de hardware.
-      if [ -S /run/user/1000/bus ]; then
+      if [ -S /run/user/1000/bus ] \
+        && systemctl --user --machine=loonbac@.host \
+          is-active --quiet graphical-session.target; then
         systemctl --user --machine=loonbac@.host \
           restart laptop-power-profile-session.service || true
       fi
@@ -58,7 +60,7 @@ in
   systemd.user.services.laptop-power-profile-session = {
     description = "Perfil de refresco niri y wallpaper de loon-laptop";
     wantedBy = [ "graphical-session.target" ];
-    after = [ "graphical-session-pre.target" ];
+    after = [ "graphical-session-pre.target" "niri.service" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${powerProfile}/bin/laptop-power-profile-session apply";
