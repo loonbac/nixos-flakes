@@ -448,7 +448,8 @@ ventana (el mismo fix de [Vesktop PR #1283](https://github.com/Vencord/Vesktop/p
 - **Brillo**: `loon-laptop` usa un wrapper setuid de `brightnessctl` sobre el
   panel interno Intel; `nixos-pc` usa DDC/CI sobre los buses I2C de la NVIDIA
   para el monitor principal GM3CC236. Waybar muestra el icono y porcentaje y
-  permite regularlo con la rueda del mouse.
+  permite regularlo con la rueda del mouse. En el PC un daemon de sesión
+  agrupa las ráfagas de input y sincroniza el valor real cada 30 segundos.
 - **Paquetes globales** (`environment.systemPackages`): git, gh, btop,
   fastfetch, ghostty, nodejs, zen-browser, vscode-insiders,
   equibop, fish, yazi, mpvpaper/mpv, oh-my-posh, los scripts propios

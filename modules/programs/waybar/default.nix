@@ -23,14 +23,17 @@ let
       };
     }
     // lib.optionalAttrs (brightnessCommand != null) {
-      "custom/backlight" = baseConfig."custom/backlight" // {
-        exec = "${brightnessCommand} json";
-        # DDC/CI es bastante más lento que leer sysfs; los cambios manuales
-        # fuerzan una actualización inmediata mediante la señal configurada.
-        interval = if config.networking.hostName == "nixos-pc" then 10 else 1;
-        on-scroll-up = "${brightnessCommand} up 5";
-        on-scroll-down = "${brightnessCommand} down 5";
-      };
+      "custom/backlight" =
+        (builtins.removeAttrs baseConfig."custom/backlight"
+          (lib.optionals (config.networking.hostName == "nixos-pc") [ "interval" ]))
+        // {
+          exec = "${brightnessCommand} json";
+          on-scroll-up = "${brightnessCommand} up 5";
+          on-scroll-down = "${brightnessCommand} down 5";
+          # Waybar vuelve a ejecutar `exec` tras cada evento por defecto. En el
+          # PC el daemon ya señala cada cambio y leer el estado local es inmediato.
+          "exec-on-event" = config.networking.hostName != "nixos-pc";
+        };
     };
   generatedConfig = pkgs.writeText "waybar-config.json" (builtins.toJSON hostConfig);
   restartWaybar = pkgs.writeShellScriptBin "omarchy-restart-waybar" ''
