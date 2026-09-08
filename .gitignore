@@ -6,6 +6,10 @@
 # Artefactos de build de Rust (cargo)
 target/
 
+# Bytecode local de herramientas Python
+__pycache__/
+*.py[cod]
+
 # Symlinks de result de Nix
 result
 result-*
