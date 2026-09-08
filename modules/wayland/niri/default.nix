@@ -10,13 +10,18 @@
 
 let
   keyboardLayout = config.services.xserver.xkb.layout;
-  hostOutputConfig = lib.optionalString
-    (config.networking.hostName == "nixos-pc") ''
-      // Monitor principal de nixos-pc (RDG GM3CC236 por DisplayPort).
-      output "DP-2" {
-          mode "1920x1080@144.002"
-      }
-    '';
+  isNixosPc = config.networking.hostName == "nixos-pc";
+  hostOutputConfig = lib.optionalString isNixosPc ''
+    // Configuración editable generada por nwg-displays en nixos-pc.
+    include "~/.config/niri/monitor.kdl"
+  '';
+
+  defaultMonitorConfig = pkgs.writeText "niri-default-monitor.kdl" ''
+    // Valor inicial; nwg-displays puede reemplazar este archivo.
+    output "DP-2" {
+        mode "1920x1080@144.002"
+    }
+  '';
 
   # La plantilla permanece como KDL válido (y se puede validar directamente),
   # pero cada host recibe el mismo layout que X11 y la consola, además de sus
@@ -49,6 +54,9 @@ let
     export HOME="$TMPDIR/home"
     mkdir -p "$HOME/.config/niri"
     cp ${defaultAccent} "$HOME/.config/niri/accent.kdl"
+    ${lib.optionalString isNixosPc ''
+      cp ${defaultMonitorConfig} "$HOME/.config/niri/monitor.kdl"
+    ''}
     niri validate --config ${niriConfig}
     touch "$out"
   '';
@@ -56,6 +64,10 @@ in
 
 {
   imports = [ ./session-services.nix ];
+
+  # GUI para configurar las salidas de Niri. Se instala solo en el PC de
+  # escritorio; la laptop conserva su configuración y paquetes actuales.
+  environment.systemPackages = lib.optionals isNixosPc [ pkgs.nwg-displays ];
 
   programs.niri = {
     enable = true;
@@ -95,5 +107,9 @@ in
     # solamente si el destino no existe y permite usar un archivo multilínea
     # sin introducir líneas inválidas en la configuración de tmpfiles.
     "C /home/loonbac/.config/niri/accent.kdl 0644 loonbac users - ${defaultAccent}"
+  ] ++ lib.optionals isNixosPc [
+    # Archivo persistente y escribible que nwg-displays actualiza. `C` instala
+    # el modo inicial de 144 Hz solo cuando aún no existe, sin pisar cambios.
+    "C /home/loonbac/.config/niri/monitor.kdl 0644 loonbac users - ${defaultMonitorConfig}"
   ];
 }
