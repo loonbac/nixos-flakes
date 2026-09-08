@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ./platform.nix
     ./games-disk.nix
+    ./gaming.nix
   ];
 
   networking.hostName = "nixos-pc";
