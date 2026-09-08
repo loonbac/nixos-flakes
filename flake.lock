@@ -135,7 +135,24 @@
         "code-insiders-flake": "code-insiders-flake",
         "millennium": "millennium",
         "nixpkgs": "nixpkgs_2",
+        "space-theme-fix": "space-theme-fix",
         "zen-browser": "zen-browser"
+      }
+    },
+    "space-theme-fix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785591561,
+        "narHash": "sha256-4/Hn8ERdEGM9Yar1IEW3j6ELmSChFKsHTTHPONT1yoM=",
+        "owner": "Apollo-Nebula",
+        "repo": "SpaceTheme-Fix",
+        "rev": "df7cb3b350f7260470114f4bcf5af6ce0959f8ec",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Apollo-Nebula",
+        "repo": "SpaceTheme-Fix",
+        "type": "github"
       }
     },
     "systems": {

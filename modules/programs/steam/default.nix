@@ -6,6 +6,10 @@ let
   cfg = config.loon.programs.steam;
 in
 {
+  imports = [
+    ./space-theme-fix.nix
+  ];
+
   options.loon.programs.steam.enable = lib.mkEnableOption
     "Steam con el framework de temas y plugins Millennium";
 

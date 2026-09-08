@@ -21,9 +21,15 @@
     };
     # Steam con soporte para temas y plugins mediante Millennium.
     millennium.url = "github:SteamClientHomebrew/Millennium?dir=packages/nix";
+    # SpaceTheme Fix para Millennium. No es un flake: se fija como fuente
+    # inmutable en flake.lock y el modulo de Steam desempaqueta su release.
+    space-theme-fix = {
+      url = "github:Apollo-Nebula/SpaceTheme-Fix";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, zen-browser, code-insiders-flake, antigravity-nix, millennium }:
+  outputs = { self, nixpkgs, zen-browser, code-insiders-flake, antigravity-nix, millennium, space-theme-fix }:
     let
       system = "x86_64-linux";
       lib = nixpkgs.lib;
@@ -81,7 +87,7 @@
           zen-browser = zen-browser.packages.${system}.default;
           vscode-insiders = vscode-insiders;
           antigravity-cli = antigravity-nix.packages.${system}.google-antigravity-cli;
-          inherit millennium;
+          inherit millennium space-theme-fix;
         };
         modules = [
           ./hosts/${hostName}
