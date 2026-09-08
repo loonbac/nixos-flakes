@@ -28,6 +28,20 @@
   };
   environment.sessionVariables.LIBVA_DRIVER_NAME = "iHD";
 
+  # Control exclusivo del panel interno Intel de este Dell. El wrapper
+  # permite que las teclas Fn cambien /sys/class/backlight sin contraseña;
+  # no se instala ni se expone en los hosts de escritorio.
+  environment.systemPackages = [
+    pkgs.brightnessctl
+    (pkgs.callPackage ../../pkgs/screen-brightness { })
+  ];
+  security.wrappers.brightnessctl = {
+    owner = "root";
+    group = "root";
+    setuid = true;
+    source = "${pkgs.brightnessctl}/bin/brightnessctl";
+  };
+
   # Firmware del WiFi/Bluetooth Realtek y microcode Intel.
   hardware.enableRedistributableFirmware = true;
   hardware.bluetooth = {

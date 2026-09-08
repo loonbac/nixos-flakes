@@ -348,7 +348,7 @@ Detalles de la config:
 | `Super+Shift+V`     | Pegar desde historial (cliphist + fuzzel)       |
 | `Super+←` / `→`     | Mover ventana con wrap (niri-cycle)             |
 | `Super+1..9`        | Cambiar de workspace                            |
-| `Fn+F6` / `Fn+F7`   | Bajar/subir brillo (`brightnessctl` ±10%)       |
+| `Fn+F6` / `Fn+F7`   | Bajar/subir brillo (backend propio por host)     |
 | `Fn+F2` / `Fn+F3`   | Bajar/subir volumen (`wpctl` ±5%)               |
 
 ### dms-greeter (`modules/wayland/dms-greeter/`)
@@ -445,10 +445,12 @@ ventana (el mismo fix de [Vesktop PR #1283](https://github.com/Vencord/Vesktop/p
 - **Boot**: systemd-boot + UEFI.
 - **Zona horaria / locale**: `America/Lima`, `es_PE.UTF-8`, teclado `es`.
 - **Paquetes no libres**: `allowUnfree = true` (microcode Intel, etc.).
-- **Brillo**: wrapper setuid de `brightnessctl` (`security.wrappers`) para que
-  las teclas Fn+F6/F7 funcionen sin contraseña.
+- **Brillo**: `loon-laptop` usa un wrapper setuid de `brightnessctl` sobre el
+  panel interno Intel; `nixos-pc` usa DDC/CI sobre los buses I2C de la NVIDIA
+  para el monitor principal GM3CC236. Waybar muestra el icono y porcentaje y
+  permite regularlo con la rueda del mouse.
 - **Paquetes globales** (`environment.systemPackages`): git, gh, btop,
-  fastfetch, ghostty, nodejs, brightnessctl, zen-browser, vscode-insiders,
+  fastfetch, ghostty, nodejs, zen-browser, vscode-insiders,
   equibop, fish, yazi, mpvpaper/mpv, oh-my-posh, los scripts propios
   (niri-cycle, loon-launch, rebuild, mpvpaper-wallpaper, niri-backdrop),
   Gentle-AI, Engram, Pi, Packet Tracer y `gentle-ai-bootstrap`, además de

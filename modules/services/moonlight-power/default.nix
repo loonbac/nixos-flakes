@@ -1,12 +1,12 @@
 # This module has no wantedBy target.  Moonlight power mode is opt-in per
 # session and must never be turned on by login, logout, or reboot.
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   moonlightPower = pkgs.callPackage ../../../pkgs/moonlight-power { };
   systemctl = "${pkgs.systemd}/bin/systemctl";
 in
-{
+lib.mkIf (config.networking.hostName == "loon-laptop") {
   environment.systemPackages = [ moonlightPower ];
 
   systemd.services.moonlight-power-root = {

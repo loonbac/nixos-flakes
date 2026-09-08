@@ -5,6 +5,34 @@
 { config, lib, pkgs, ... }:
 
 let
+  brightnessCommand =
+    if config.networking.hostName == "loon-laptop" then "screen-brightness"
+    else if config.networking.hostName == "nixos-pc" then "ddc-brightness"
+    else null;
+  baseConfig = builtins.fromJSON (builtins.readFile ./config.jsonc);
+  rightModules = baseConfig."group/right1".modules;
+  hostConfig =
+    (builtins.removeAttrs baseConfig
+      (lib.optionals (brightnessCommand == null) [ "custom/backlight" ]))
+    // {
+      "group/right1" = baseConfig."group/right1" // {
+        modules = if brightnessCommand != null then
+          rightModules
+        else
+          builtins.filter (module: module != "custom/backlight") rightModules;
+      };
+    }
+    // lib.optionalAttrs (brightnessCommand != null) {
+      "custom/backlight" = baseConfig."custom/backlight" // {
+        exec = "${brightnessCommand} json";
+        # DDC/CI es bastante más lento que leer sysfs; los cambios manuales
+        # fuerzan una actualización inmediata mediante la señal configurada.
+        interval = if config.networking.hostName == "nixos-pc" then 10 else 1;
+        on-scroll-up = "${brightnessCommand} up 5";
+        on-scroll-down = "${brightnessCommand} down 5";
+      };
+    };
+  generatedConfig = pkgs.writeText "waybar-config.json" (builtins.toJSON hostConfig);
   restartWaybar = pkgs.writeShellScriptBin "omarchy-restart-waybar" ''
     ${pkgs.systemd}/bin/systemctl --user restart waybar.service
   '';
@@ -16,7 +44,8 @@ in
   ];
 
   # Config gestionada por NixOS: waybar la lee desde el home (symlinks).
-  environment.etc."waybar/config.jsonc".source = ./config.jsonc;
+  # Cada host recibe su backend: sysfs en el Dell y DDC/CI en el PC.
+  environment.etc."waybar/config.jsonc".source = generatedConfig;
   environment.etc."waybar/style.css".source = ./style.css;
 
   # Fuerza que la config del home sean symlinks a la gestionada.

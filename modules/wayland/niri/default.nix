@@ -11,9 +11,19 @@
 let
   keyboardLayout = config.services.xserver.xkb.layout;
   isNixosPc = config.networking.hostName == "nixos-pc";
+  isLoonLaptop = config.networking.hostName == "loon-laptop";
+  brightnessCommand =
+    if isLoonLaptop then "screen-brightness"
+    else if isNixosPc then "ddc-brightness"
+    else null;
   hostOutputConfig = lib.optionalString isNixosPc ''
     // Configuración editable generada por nwg-displays en nixos-pc.
     include "monitor.kdl"
+  '';
+  hostBacklightBinds = lib.optionalString (brightnessCommand != null) ''
+    // Brillo con Fn+F6 / Fn+F7 usando el backend específico del host.
+    XF86MonBrightnessDown { spawn-sh "${brightnessCommand} down 10"; }
+    XF86MonBrightnessUp { spawn-sh "${brightnessCommand} up 10"; }
   '';
 
   defaultMonitorConfig = pkgs.writeText "niri-default-monitor.kdl" ''
@@ -46,7 +56,10 @@ let
         'layout "${keyboardLayout}" // HOST_KEYBOARD_LAYOUT' \
       --replace-fail \
         '// HOST_OUTPUT_CONFIG' \
-        ${lib.escapeShellArg hostOutputConfig}
+        ${lib.escapeShellArg hostOutputConfig} \
+      --replace-fail \
+        '// HOST_BACKLIGHT_BINDS' \
+        ${lib.escapeShellArg hostBacklightBinds}
     ${lib.optionalString isNixosPc ''
       cp ${defaultMonitorConfig} "$out/monitor.kdl"
     ''}

@@ -95,17 +95,6 @@ in
     font-awesome
   ];
 
-  # ---- Brillo de pantalla ----
-  # Wrapper setuid para que brightnessctl (teclas Fn+F6/F7) pueda escribir
-  # en /sys/class/backlight sin pedir contraseña. Solo el binario setuid,
-  # no todo el paquete.
-  security.wrappers.brightnessctl = {
-    owner = "root";
-    group = "root";
-    setuid = true;
-    source = "${pkgs.brightnessctl}/bin/brightnessctl";
-  };
-
   # ---- Variables de entorno de build y sesión ----
   environment.sessionVariables = {
     PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libpq.dev}/lib/pkgconfig";
@@ -173,7 +162,6 @@ in
     openssl.dev        # .pc files de OpenSSL para pkg-config en builds Rust
     libpq              # deps de pq-sys (sqlx + postgres)
     claude-code
-    brightnessctl
     zen-browser
     chromium           # para E2E (Playwright/Puppeteer) en esta máquina
     vscode-insiders
@@ -215,9 +203,6 @@ in
         # Alertas de batería baja crítica (<=10%)
         libnotify
         (pkgs.callPackage ../../pkgs/battery-notify { })
-        # Control de brillo con escala 0%-100% remapeada
-        (pkgs.callPackage ../../pkgs/screen-brightness { })
-
     # Fondo de pantalla animado (video en loop detrás de las ventanas).
     mpvpaper
     mpv

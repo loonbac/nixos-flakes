@@ -5,11 +5,27 @@
 pkgs.writeShellScriptBin "screen-brightness" ''
   set -euo pipefail
 
-  BRIGHTNESSCTL="${pkgs.brightnessctl}/bin/brightnessctl"
+  # Las escrituras necesitan el wrapper setuid declarado en
+  # hosts/loon-laptop/platform.nix. Invocar directamente el binario del store
+  # evita el wrapper y termina en "Permission denied" para el usuario.
+  BRIGHTNESSCTL="/run/wrappers/bin/brightnessctl"
+  if [ ! -x "$BRIGHTNESSCTL" ]; then
+    BRIGHTNESSCTL="${pkgs.brightnessctl}/bin/brightnessctl"
+  fi
+
   CMD="''${1:-get}"
   SYS_DIR="/sys/class/backlight/intel_backlight"
   if [ ! -d "$SYS_DIR" ]; then
-    SYS_DIR="$(find /sys/class/backlight -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -1 || true)"
+    # /sys/class/backlight contiene enlaces simbólicos a los dispositivos.
+    # `find -type d` sin seguir enlaces no los detecta y hacía que Waybar
+    # ocultara el brillo cuando el driver no se llamaba intel_backlight.
+    SYS_DIR=""
+    for candidate in /sys/class/backlight/*; do
+      if [ -d "$candidate" ] && [ -f "$candidate/max_brightness" ]; then
+        SYS_DIR="$candidate"
+        break
+      fi
+    done
   fi
 
   if [ -z "$SYS_DIR" ] || [ ! -f "$SYS_DIR/max_brightness" ]; then
@@ -25,6 +41,7 @@ pkgs.writeShellScriptBin "screen-brightness" ''
   fi
 
   MAX_RAW="$(cat "$SYS_DIR/max_brightness")"
+  DEVICE="$(basename "$SYS_DIR")"
   # El 10% del hardware es el 0% de la escala de usuario
   MIN_RAW=$(( MAX_RAW / 10 ))
   SPAN_RAW=$(( MAX_RAW - MIN_RAW ))
@@ -81,7 +98,7 @@ pkgs.writeShellScriptBin "screen-brightness" ''
       TARGET_UI="''${2:-0}"
       TARGET_UI="''${TARGET_UI%%%}"
       TARGET_RAW="$(ui_to_raw "$TARGET_UI")"
-      "$BRIGHTNESSCTL" --min-value="$MIN_RAW" set "$TARGET_RAW" >/dev/null 2>&1 || true
+      "$BRIGHTNESSCTL" --device="$DEVICE" --min-value="$MIN_RAW" set "$TARGET_RAW" >/dev/null
       notify_waybar
       ;;
 
@@ -94,7 +111,7 @@ pkgs.writeShellScriptBin "screen-brightness" ''
       NEW_UI=$(( CUR_UI + STEP ))
       if [ "$NEW_UI" -gt 100 ]; then NEW_UI=100; fi
       TARGET_RAW="$(ui_to_raw "$NEW_UI")"
-      "$BRIGHTNESSCTL" --min-value="$MIN_RAW" set "$TARGET_RAW" >/dev/null 2>&1 || true
+      "$BRIGHTNESSCTL" --device="$DEVICE" --min-value="$MIN_RAW" set "$TARGET_RAW" >/dev/null
       notify_waybar
       ;;
 
@@ -107,7 +124,7 @@ pkgs.writeShellScriptBin "screen-brightness" ''
       NEW_UI=$(( CUR_UI - STEP ))
       if [ "$NEW_UI" -lt 0 ]; then NEW_UI=0; fi
       TARGET_RAW="$(ui_to_raw "$NEW_UI")"
-      "$BRIGHTNESSCTL" --min-value="$MIN_RAW" set "$TARGET_RAW" >/dev/null 2>&1 || true
+      "$BRIGHTNESSCTL" --device="$DEVICE" --min-value="$MIN_RAW" set "$TARGET_RAW" >/dev/null
       notify_waybar
       ;;
 

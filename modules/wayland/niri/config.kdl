@@ -104,10 +104,8 @@ binds {
     // notificaciones acumuladas (el icono del tray en waybar también).
     Super+N { spawn "swaync-client" "-t" "-sw"; }
 
-    // Brillo de pantalla con las teclas multimedia Fn+F6 / Fn+F7.
-    // screen-brightness remapea la escala para que 0% sea el 10% físico del panel (evita pantalla negra).
-    XF86MonBrightnessDown { spawn-sh "screen-brightness down 10"; }
-    XF86MonBrightnessUp { spawn-sh "screen-brightness up 10"; }
+    // Nix inserta aquí los binds y el backend de brillo específicos del host.
+    // HOST_BACKLIGHT_BINDS
 
     // Volumen con las teclas multimedia Fn+F2 / Fn+F3 (pipewire).
     XF86AudioLowerVolume { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"; }
