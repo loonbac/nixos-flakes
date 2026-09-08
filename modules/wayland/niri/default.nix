@@ -13,7 +13,7 @@ let
   isNixosPc = config.networking.hostName == "nixos-pc";
   hostOutputConfig = lib.optionalString isNixosPc ''
     // Configuración editable generada por nwg-displays en nixos-pc.
-    include "~/.config/niri/monitor.kdl"
+    include "monitor.kdl"
   '';
 
   defaultMonitorConfig = pkgs.writeText "niri-default-monitor.kdl" ''
@@ -23,18 +23,35 @@ let
     }
   '';
 
+  # El tema GTK puede conservar en caché la ausencia de un icono cuando una
+  # aplicación se instala con la sesión ya iniciada. Una ruta absoluta evita
+  # ese falso negativo y sigue apuntando al recurso del propio paquete.
+  nwgDisplays = pkgs.nwg-displays.overrideAttrs (oldAttrs: {
+    postInstall = (oldAttrs.postInstall or "") + ''
+      substituteInPlace $out/share/applications/nwg-displays.desktop \
+        --replace-fail \
+          'Icon=nwg-displays' \
+          "Icon=$out/share/icons/hicolor/scalable/apps/nwg-displays.svg"
+    '';
+  });
+
   # La plantilla permanece como KDL válido (y se puede validar directamente),
   # pero cada host recibe el mismo layout que X11 y la consola, además de sus
   # ajustes específicos de monitor.
-  niriConfig = pkgs.runCommand "niri-config.kdl" { } ''
-    substitute ${./config.kdl} "$out" \
+  niriConfigDir = pkgs.runCommand "niri-config" { } ''
+    mkdir "$out"
+    substitute ${./config.kdl} "$out/config.kdl" \
       --replace-fail \
         'layout "es" // HOST_KEYBOARD_LAYOUT' \
         'layout "${keyboardLayout}" // HOST_KEYBOARD_LAYOUT' \
       --replace-fail \
         '// HOST_OUTPUT_CONFIG' \
         ${lib.escapeShellArg hostOutputConfig}
+    ${lib.optionalString isNixosPc ''
+      cp ${defaultMonitorConfig} "$out/monitor.kdl"
+    ''}
   '';
+  niriConfig = "${niriConfigDir}/config.kdl";
 
   defaultAccent = pkgs.writeText "niri-default-accent.kdl" ''
     layout {
@@ -54,9 +71,6 @@ let
     export HOME="$TMPDIR/home"
     mkdir -p "$HOME/.config/niri"
     cp ${defaultAccent} "$HOME/.config/niri/accent.kdl"
-    ${lib.optionalString isNixosPc ''
-      cp ${defaultMonitorConfig} "$HOME/.config/niri/monitor.kdl"
-    ''}
     niri validate --config ${niriConfig}
     touch "$out"
   '';
@@ -67,7 +81,7 @@ in
 
   # GUI para configurar las salidas de Niri. Se instala solo en el PC de
   # escritorio; la laptop conserva su configuración y paquetes actuales.
-  environment.systemPackages = lib.optionals isNixosPc [ pkgs.nwg-displays ];
+  environment.systemPackages = lib.optionals isNixosPc [ nwgDisplays ];
 
   programs.niri = {
     enable = true;
@@ -111,5 +125,8 @@ in
     # Archivo persistente y escribible que nwg-displays actualiza. `C` instala
     # el modo inicial de 144 Hz solo cuando aún no existe, sin pisar cambios.
     "C /home/loonbac/.config/niri/monitor.kdl 0644 loonbac users - ${defaultMonitorConfig}"
+    # El include relativo que nwg-displays reconoce se resuelve desde /etc/niri;
+    # este enlace lo conecta al archivo persistente del usuario.
+    "L+ /etc/niri/monitor.kdl - - - - /home/loonbac/.config/niri/monitor.kdl"
   ];
 }
