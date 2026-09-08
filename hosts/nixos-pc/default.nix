@@ -5,6 +5,7 @@
   imports = [
     ./hardware-configuration.nix
     ./platform.nix
+    ./games-disk.nix
   ];
 
   networking.hostName = "nixos-pc";
