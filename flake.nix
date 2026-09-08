@@ -19,9 +19,11 @@
       url = "github:jacopone/antigravity-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Steam con soporte para temas y plugins mediante Millennium.
+    millennium.url = "github:SteamClientHomebrew/Millennium?dir=packages/nix";
   };
 
-  outputs = { self, nixpkgs, zen-browser, code-insiders-flake, antigravity-nix }:
+  outputs = { self, nixpkgs, zen-browser, code-insiders-flake, antigravity-nix, millennium }:
     let
       system = "x86_64-linux";
       lib = nixpkgs.lib;
@@ -79,6 +81,7 @@
           zen-browser = zen-browser.packages.${system}.default;
           vscode-insiders = vscode-insiders;
           antigravity-cli = antigravity-nix.packages.${system}.google-antigravity-cli;
+          inherit millennium;
         };
         modules = [
           ./hosts/${hostName}

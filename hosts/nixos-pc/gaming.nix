@@ -2,6 +2,8 @@
 { pkgs, ... }:
 
 {
+  loon.programs.steam.enable = true;
+
   environment.systemPackages = [
     pkgs.heroic
   ];

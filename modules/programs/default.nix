@@ -15,5 +15,6 @@
     ./waydroid
     ./virtualbox
     ./gentle-ai
+    ./steam
   ];
 }
